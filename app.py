@@ -9,7 +9,7 @@ train = pd.read_csv('phishing_url.csv')
 lst = train.url.tolist()
 
 
-@app.route('/')
+@app.route('/home')
 def index():
     return render_template('index.html')
 
