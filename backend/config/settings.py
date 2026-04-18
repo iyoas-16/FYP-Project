@@ -3,6 +3,13 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+
+_BACKEND_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(_BACKEND_DIR / ".env")
+load_dotenv(_BACKEND_DIR.parent / ".env", override=False)
+
 
 def _as_bool(value: str | None, default: bool = False) -> bool:
     if value is None:
@@ -22,7 +29,7 @@ def _resolve_path(base_dir: Path, value: str) -> str:
 
 
 class Settings:
-    BASE_DIR = Path(__file__).resolve().parent.parent
+    BASE_DIR = _BACKEND_DIR
     INSTANCE_DIR = BASE_DIR / "instance"
     TESTING = _as_bool(os.getenv("TESTING"))
     DEBUG = _as_bool(os.getenv("FLASK_DEBUG"))

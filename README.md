@@ -56,6 +56,8 @@ pip install -r requirements.txt
 python app.py
 ```
 
+Local standalone backend runs load environment variables from `backend/.env` automatically.
+
 ### Frontend
 
 ```bash

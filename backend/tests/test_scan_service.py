@@ -56,3 +56,27 @@ class ScanServiceTestCase(unittest.TestCase):
             self.assertIn("warning", result)
             self.assertEqual(history["total"], 1)
             self.assertEqual(history["items"][0]["url"], "https://paypal.com/login")
+
+    def test_service_role_key_takes_precedence_for_supabase_requests(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = ScanService(
+                {
+                    "SUPABASE_URL": "https://example.supabase.co",
+                    "SUPABASE_SERVICE_ROLE_KEY": "service-role-key",
+                    "SUPABASE_PUBLISHABLE_KEY": "publishable-key",
+                },
+                _FakeModelService(),
+                LocalHistoryStore(str(Path(temp_dir) / "history.sqlite")),
+            )
+            user = AuthenticatedUser(
+                user_id="user-123",
+                email="user@example.com",
+                claims={"sub": "user-123"},
+                is_admin=False,
+                access_token="user-token",
+            )
+
+            api_key, auth_header = service._resolve_credentials(user)
+
+            self.assertEqual(api_key, "service-role-key")
+            self.assertEqual(auth_header, "Bearer service-role-key")

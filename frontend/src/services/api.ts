@@ -193,6 +193,7 @@ export async function fetchHistory(
     result?: Verdict;
     sort?: string;
     limit?: number;
+    offset?: number;
   } = {},
 ) {
   const payload = await request<unknown>("/history", {
@@ -200,7 +201,8 @@ export async function fetchHistory(
       search: params.search,
       result: params.result,
       sort: params.sort,
-      limit: params.limit ?? 500,
+      limit: params.limit ?? 25,
+      offset: params.offset ?? 0,
     },
   });
   const record = asObject(payload) ?? {};

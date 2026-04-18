@@ -25,15 +25,21 @@ const verdictMeta = {
   },
 } as const;
 
+const PAGE_SIZE = 25;
+const EXPORT_PAGE_SIZE = 100;
+
 export function HistoryPage() {
   const { user, loading: authLoading } = useAuth();
   const [rows, setRows] = useState<HistoryItem[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filter, setFilter] = useState<"all" | Verdict>("all");
+  const [page, setPage] = useState(1);
   const [sort, setSort] = useState<"newest" | "oldest" | "confidence_desc" | "confidence_asc">(
     "newest",
   );
@@ -42,6 +48,10 @@ export function HistoryPage() {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
     return () => window.clearTimeout(timer);
   }, [search]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, filter, sort]);
 
   useEffect(() => {
     if (authLoading || !user) return;
@@ -53,21 +63,30 @@ export function HistoryPage() {
       setError(null);
 
       try {
+        const offset = (page - 1) * PAGE_SIZE;
         const response = await fetchHistory({
           search: debouncedSearch || undefined,
           result: filter === "all" ? undefined : filter,
           sort,
-          limit: 500,
+          limit: PAGE_SIZE,
+          offset,
         });
 
         if (!active) return;
+        const pageCount = Math.max(1, Math.ceil(response.total / PAGE_SIZE));
+        if (response.total > 0 && page > pageCount) {
+          setPage(pageCount);
+          return;
+        }
         setRows(response.items);
+        setTotal(response.total);
       } catch (err) {
         if (!active) return;
         setError(
           err instanceof ApiError || err instanceof Error ? err.message : "Failed to load history.",
         );
         setRows([]);
+        setTotal(0);
       } finally {
         if (active) setLoading(false);
       }
@@ -78,24 +97,7 @@ export function HistoryPage() {
     return () => {
       active = false;
     };
-  }, [authLoading, debouncedSearch, filter, reloadKey, sort, user]);
-
-  const filtered = useMemo(() => {
-    const result = rows.filter((row) => {
-      if (filter !== "all" && row.result !== filter) return false;
-      if (search && !row.url.toLowerCase().includes(search.toLowerCase())) return false;
-      return true;
-    });
-
-    return result.sort((left, right) => {
-      if (sort === "oldest") {
-        return new Date(left.created_at ?? 0).getTime() - new Date(right.created_at ?? 0).getTime();
-      }
-      if (sort === "confidence_desc") return right.confidence - left.confidence;
-      if (sort === "confidence_asc") return left.confidence - right.confidence;
-      return new Date(right.created_at ?? 0).getTime() - new Date(left.created_at ?? 0).getTime();
-    });
-  }, [filter, rows, search, sort]);
+  }, [authLoading, debouncedSearch, filter, page, reloadKey, sort, user]);
 
   const overview = useMemo(() => {
     const phishing = rows.filter((row) => row.result === "phishing").length;
@@ -106,30 +108,64 @@ export function HistoryPage() {
     return {
       phishing,
       legit,
-      total: rows.length,
+      total,
       avgConfidence,
     };
-  }, [rows]);
+  }, [rows, total]);
 
-  function exportCsv() {
-    const header = ["URL", "Result", "Confidence", "Date"];
-    const lines = [header.join(",")];
-    for (const row of filtered) {
-      const cells = [
-        `"${row.url.replace(/"/g, '""')}"`,
-        row.result,
-        `${Math.round(row.confidence * 100)}%`,
-        row.created_at ? new Date(row.created_at).toISOString() : "",
-      ];
-      lines.push(cells.join(","));
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const startRow = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const endRow = total === 0 ? 0 : startRow + rows.length - 1;
+
+  async function exportCsv() {
+    setExporting(true);
+    setError(null);
+
+    try {
+      const allRows: HistoryItem[] = [];
+      let offset = 0;
+      let expectedTotal = total;
+
+      do {
+        const response = await fetchHistory({
+          search: debouncedSearch || undefined,
+          result: filter === "all" ? undefined : filter,
+          sort,
+          limit: EXPORT_PAGE_SIZE,
+          offset,
+        });
+        allRows.push(...response.items);
+        expectedTotal = response.total;
+        offset += response.items.length;
+        if (response.items.length === 0) break;
+      } while (offset < expectedTotal);
+
+      const header = ["URL", "Result", "Confidence", "Date"];
+      const lines = [header.join(",")];
+      for (const row of allRows) {
+        const cells = [
+          `"${row.url.replace(/"/g, '""')}"`,
+          row.result,
+          `${Math.round(row.confidence * 100)}%`,
+          row.created_at ? new Date(row.created_at).toISOString() : "",
+        ];
+        lines.push(cells.join(","));
+      }
+
+      const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `phishguard-history-${Date.now()}.csv`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(
+        err instanceof ApiError || err instanceof Error ? err.message : "Failed to export history.",
+      );
+    } finally {
+      setExporting(false);
     }
-    const blob = new Blob([lines.join("\n")], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `phishguard-history-${Date.now()}.csv`;
-    anchor.click();
-    URL.revokeObjectURL(url);
   }
 
   return (
@@ -148,14 +184,23 @@ export function HistoryPage() {
               <Button
                 variant="outline"
                 onClick={() => setReloadKey((value) => value + 1)}
-                disabled={loading}
+                disabled={loading || exporting}
               >
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Refresh
               </Button>
-              <Button variant="outline" onClick={exportCsv} disabled={!filtered.length}>
-                <Download className="mr-2 h-4 w-4" />
-                Export CSV
+              <Button variant="outline" onClick={() => void exportCsv()} disabled={!total || loading || exporting}>
+                {exporting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Exporting...
+                  </>
+                ) : (
+                  <>
+                    <Download className="mr-2 h-4 w-4" />
+                    Export CSV
+                  </>
+                )}
               </Button>
             </div>
           </div>
@@ -221,47 +266,76 @@ export function HistoryPage() {
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Loading history...
               </div>
-            ) : filtered.length === 0 ? (
+            ) : rows.length === 0 ? (
               <div className="py-16 text-center text-sm text-muted-foreground">
-                {rows.length === 0
+                {total === 0
                   ? "No scans yet — run your first URL check from the dashboard."
                   : "No results match your filters."}
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[55%]">URL</TableHead>
-                    <TableHead>Result</TableHead>
-                    <TableHead>Confidence</TableHead>
-                    <TableHead>Date</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.map((row) => {
-                    const meta = verdictMeta[row.result];
-                    const Icon = meta.icon;
+              <div className="space-y-4">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[55%]">URL</TableHead>
+                      <TableHead>Result</TableHead>
+                      <TableHead>Confidence</TableHead>
+                      <TableHead>Date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((row) => {
+                      const meta = verdictMeta[row.result];
+                      const Icon = meta.icon;
 
-                    return (
-                      <TableRow key={row.id ?? `${row.url}-${row.created_at}`}>
-                        <TableCell className="max-w-xs font-mono text-xs">
-                          <span className="block truncate">{row.url}</span>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={meta.cls}>
-                            <Icon className="mr-1 h-3 w-3" />
-                            {meta.label}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="tabular-nums">{Math.round(row.confidence * 100)}%</TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {row.created_at ? new Date(row.created_at).toLocaleString() : "—"}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                      return (
+                        <TableRow key={row.id ?? `${row.url}-${row.created_at}`}>
+                          <TableCell className="max-w-xs font-mono text-xs">
+                            <span className="block truncate">{row.url}</span>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={meta.cls}>
+                              <Icon className="mr-1 h-3 w-3" />
+                              {meta.label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="tabular-nums">{Math.round(row.confidence * 100)}%</TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {row.created_at ? new Date(row.created_at).toLocaleString() : "—"}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+
+                <div className="flex flex-col gap-3 border-t border-border/60 pt-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                  <p>
+                    Showing {startRow}-{endRow} of {total} scans
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage((value) => Math.max(1, value - 1))}
+                      disabled={page <= 1 || loading}
+                    >
+                      Previous
+                    </Button>
+                    <span>
+                      Page {page} of {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+                      disabled={page >= totalPages || loading}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              </div>
             )}
           </Card>
         </ProtectedRoute>
