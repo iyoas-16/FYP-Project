@@ -28,6 +28,37 @@ class _FailingScanService(ScanService):
         raise UpstreamServiceError("save failed")
 
 
+class _AdminStatsScanService(ScanService):
+    def _request(self, method, path, **kwargs):
+        if path == "/rest/v1/scans":
+            return []
+        if path == "/auth/v1/admin/users":
+            return {
+                "users": [
+                    {
+                        "id": "user-123",
+                        "email": "admin@example.com",
+                        "created_at": "2026-04-01T10:00:00+00:00",
+                        "last_sign_in_at": "2026-04-18T12:00:00+00:00",
+                        "role": "authenticated",
+                        "app_metadata": {"role": "admin", "roles": ["admin"]},
+                    },
+                    {
+                        "id": "user-456",
+                        "email": "user@example.com",
+                        "created_at": "2026-04-02T10:00:00+00:00",
+                        "last_sign_in_at": None,
+                        "role": "authenticated",
+                        "app_metadata": {"provider": "email", "roles": ["user"]},
+                    },
+                ]
+            }
+        raise AssertionError(f"Unexpected request path: {path}")
+
+    def _count_records(self, extra_filters=None, *, user=None) -> int:
+        return 0
+
+
 class ScanServiceTestCase(unittest.TestCase):
     def test_scan_returns_prediction_when_persistence_fails(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -80,3 +111,23 @@ class ScanServiceTestCase(unittest.TestCase):
 
             self.assertEqual(api_key, "service-role-key")
             self.assertEqual(auth_header, "Bearer service-role-key")
+
+    def test_admin_stats_include_auth_history(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = _AdminStatsScanService(
+                {
+                    "ADMIN_ANALYTICS_FETCH_LIMIT": 50,
+                    "SUPABASE_SERVICE_ROLE_KEY": "service-role-key",
+                },
+                _FakeModelService(),
+                LocalHistoryStore(str(Path(temp_dir) / "history.sqlite")),
+            )
+
+            result = service.get_admin_stats(range_value="30d")
+
+            self.assertEqual(len(result["auth_history"]), 2)
+            self.assertEqual(result["auth_history"][0]["email"], "admin@example.com")
+            self.assertTrue(result["auth_history"][0]["is_admin"])
+            self.assertEqual(
+                result["auth_history"][1]["signup_timestamp"], "2026-04-02T10:00:00+00:00"
+            )

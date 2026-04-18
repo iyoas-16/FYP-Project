@@ -48,6 +48,13 @@ export type AdminAnalytics = {
     last_seen?: string;
   }>;
   recent_scans: HistoryItem[];
+  auth_history: Array<{
+    id?: string;
+    email: string;
+    signup_timestamp?: string;
+    last_sign_in_timestamp?: string;
+    is_admin: boolean;
+  }>;
 };
 
 type RequestOptions = {
@@ -259,6 +266,18 @@ export async function fetchAdminAnalytics(range: "7d" | "30d" | "90d") {
       : [],
     recent_scans: Array.isArray(record.recent_scans)
       ? record.recent_scans.map(normalizeHistoryItem)
+      : [],
+    auth_history: Array.isArray(record.auth_history)
+      ? record.auth_history.map((item) => {
+          const entry = asObject(item) ?? {};
+          return {
+            id: toString(entry.id) || undefined,
+            email: toString(entry.email),
+            signup_timestamp: toString(entry.signup_timestamp) || undefined,
+            last_sign_in_timestamp: toString(entry.last_sign_in_timestamp) || undefined,
+            is_admin: Boolean(entry.is_admin),
+          };
+        })
       : [],
   } satisfies AdminAnalytics;
 }

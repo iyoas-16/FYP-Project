@@ -137,6 +137,7 @@ class ScanService:
             for row in serialized_rows
             if isinstance(row.get("confidence"), (int, float))
         ]
+        auth_history = self._fetch_admin_auth_history()
 
         return {
             "overview": {
@@ -154,6 +155,7 @@ class ScanService:
             ],
             "top_risky_urls": sorted(top_urls.values(), key=lambda item: (-item["count"], item["url"]))[:10],
             "recent_scans": serialized_rows[:20],
+            "auth_history": auth_history,
         }
 
     def user_is_admin(self, user_id: str) -> bool:
@@ -255,6 +257,28 @@ class ScanService:
         params.update(filters)
         return params
 
+    def _fetch_admin_auth_history(self) -> list[dict]:
+        if not self._config.get("SUPABASE_SERVICE_ROLE_KEY"):
+            raise ConfigurationError("SUPABASE_SERVICE_ROLE_KEY must be configured for admin auth history")
+
+        response = self._request(
+            "GET",
+            "/auth/v1/admin/users",
+            params={
+                "page": "1",
+                "per_page": str(min(self._config["ADMIN_ANALYTICS_FETCH_LIMIT"], 1000)),
+            },
+        )
+        users = response.get("users", []) if isinstance(response, dict) else []
+        history = [self._serialize_auth_history_item(user) for user in users if user.get("email")]
+        history.sort(
+            key=lambda item: (
+                item.get("last_sign_in_timestamp") or item.get("signup_timestamp") or ""
+            ),
+            reverse=True,
+        )
+        return history
+
     def _request(
         self,
         method: str,
@@ -326,4 +350,18 @@ class ScanService:
             "result": self._to_api_result(record.get("result")) if record.get("result") in {"phishing", "legitimate"} else (record.get("result") or "legit"),
             "confidence": record.get("confidence_score") if record.get("confidence_score") is not None else record.get("confidence", 0),
             "created_at": record.get("created_at"),
+        }
+
+    def _serialize_auth_history_item(self, user: dict) -> dict:
+        app_metadata = user.get("app_metadata") if isinstance(user.get("app_metadata"), dict) else {}
+        roles = {str(user.get("role", "")).lower(), str(app_metadata.get("role", "")).lower()}
+        for entry in app_metadata.get("roles", []) or []:
+            roles.add(str(entry).lower())
+
+        return {
+            "id": user.get("id"),
+            "email": user.get("email"),
+            "signup_timestamp": user.get("created_at"),
+            "last_sign_in_timestamp": user.get("last_sign_in_at"),
+            "is_admin": "admin" in roles or "service_role" in roles,
         }
