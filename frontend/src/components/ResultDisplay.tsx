@@ -18,7 +18,10 @@ const verdictConfig = {
     bg: "bg-success/10",
     border: "border-success/30",
   },
-} satisfies Record<ScanResult["result"], { label: string; icon: typeof ShieldX; color: string; bg: string; border: string }>;
+} satisfies Record<
+  ScanResult["result"],
+  { label: string; icon: typeof ShieldX; color: string; bg: string; border: string }
+>;
 
 export function ResultDisplay({ url, result }: { url: string; result: ScanResult }) {
   const cfg = verdictConfig[result.result];

@@ -30,11 +30,11 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "PhishGuard — AI-powered phishing URL detection" },
-        {
-          name: "description",
-          content:
-            "Check any URL for phishing indicators with a backend ML API. Track your scan history.",
-        },
+      {
+        name: "description",
+        content:
+          "Check any URL for phishing indicators with a backend ML API. Track your scan history.",
+      },
     ],
     links: [{ rel: "stylesheet", href: appCss }],
   }),

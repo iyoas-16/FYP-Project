@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { Activity, Loader2, RefreshCw, ShieldAlert, ShieldCheck, ShieldX, Users } from "lucide-react";
+import {
+  Activity,
+  Loader2,
+  RefreshCw,
+  ShieldAlert,
+  ShieldCheck,
+  ShieldX,
+  Users,
+} from "lucide-react";
 import { Area, AreaChart, CartesianGrid, Pie, PieChart, XAxis } from "recharts";
 import { Header } from "@/components/Header";
 import { Button } from "@/components/ui/button";
@@ -8,7 +16,14 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { fetchAdminAnalytics, type AdminAnalytics, type Verdict } from "@/services/api";
 import { useAuth } from "@/hooks/use-auth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -73,10 +88,19 @@ export function AdminPage() {
     return total > 0 ? Math.round((flaggedCount / total) * 100) : 0;
   }, [data, flaggedCount]);
   const pieData = useMemo(
-    () => [
-      { verdict: "phishing" as const, count: data?.overview.phishing_count ?? 0, fill: verdictMeta.phishing.color },
-      { verdict: "legit" as const, count: data?.overview.legit_count ?? 0, fill: verdictMeta.legit.color },
-    ].filter((item) => item.count > 0),
+    () =>
+      [
+        {
+          verdict: "phishing" as const,
+          count: data?.overview.phishing_count ?? 0,
+          fill: verdictMeta.phishing.color,
+        },
+        {
+          verdict: "legit" as const,
+          count: data?.overview.legit_count ?? 0,
+          fill: verdictMeta.legit.color,
+        },
+      ].filter((item) => item.count > 0),
     [data],
   );
 

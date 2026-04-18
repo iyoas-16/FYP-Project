@@ -1,16 +1,37 @@
 import { useEffect, useMemo, useState } from "react";
-import { Download, Search, Loader2, RefreshCw, ShieldCheck, ShieldAlert, ShieldX } from "lucide-react";
+import {
+  Download,
+  Search,
+  Loader2,
+  RefreshCw,
+  ShieldCheck,
+  ShieldAlert,
+  ShieldX,
+} from "lucide-react";
 import { Header } from "@/components/Header";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ApiError, fetchHistory, type HistoryItem, type Verdict } from "@/services/api";
 import { useAuth } from "@/hooks/use-auth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 const verdictMeta = {
   phishing: {
@@ -103,7 +124,9 @@ export function HistoryPage() {
     const phishing = rows.filter((row) => row.result === "phishing").length;
     const legit = rows.filter((row) => row.result === "legit").length;
     const avgConfidence =
-      rows.length > 0 ? Math.round((rows.reduce((sum, row) => sum + row.confidence, 0) / rows.length) * 100) : 0;
+      rows.length > 0
+        ? Math.round((rows.reduce((sum, row) => sum + row.confidence, 0) / rows.length) * 100)
+        : 0;
 
     return {
       phishing,
@@ -189,7 +212,11 @@ export function HistoryPage() {
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Refresh
               </Button>
-              <Button variant="outline" onClick={() => void exportCsv()} disabled={!total || loading || exporting}>
+              <Button
+                variant="outline"
+                onClick={() => void exportCsv()}
+                disabled={!total || loading || exporting}
+              >
                 {exporting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -299,7 +326,9 @@ export function HistoryPage() {
                               {meta.label}
                             </Badge>
                           </TableCell>
-                          <TableCell className="tabular-nums">{Math.round(row.confidence * 100)}%</TableCell>
+                          <TableCell className="tabular-nums">
+                            {Math.round(row.confidence * 100)}%
+                          </TableCell>
                           <TableCell className="text-muted-foreground">
                             {row.created_at ? new Date(row.created_at).toLocaleString() : "—"}
                           </TableCell>

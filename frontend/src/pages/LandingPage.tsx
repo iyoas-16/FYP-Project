@@ -21,8 +21,8 @@ export function LandingPage() {
               <span className="bg-gradient-primary bg-clip-text text-transparent">reach users</span>
             </h1>
             <p className="mt-6 text-lg text-muted-foreground">
-              PhishGuard combines a production Flask prediction API, Supabase authentication,
-              and a modern React interface to help teams scan URLs, track history, and monitor trends.
+              PhishGuard combines a production Flask prediction API, Supabase authentication, and a
+              modern React interface to help teams scan URLs, track history, and monitor trends.
             </p>
             <div className="mt-8 flex items-center justify-center gap-3">
               <Button asChild size="lg" className="shadow-glow">
@@ -78,9 +78,21 @@ export function LandingPage() {
           </div>
           <div className="mx-auto mt-12 max-w-3xl space-y-4">
             {[
-              { n: "1", t: "Client request", d: "The React app sends the URL to the Flask backend over HTTP with the user session token." },
-              { n: "2", t: "Backend prediction", d: "The API validates the input, preprocesses the URL, runs the ML model, and stores the result." },
-              { n: "3", t: "Insights and history", d: "Users review their history and admins inspect analytics without exposing database or model logic to the browser." },
+              {
+                n: "1",
+                t: "Client request",
+                d: "The React app sends the URL to the Flask backend over HTTP with the user session token.",
+              },
+              {
+                n: "2",
+                t: "Backend prediction",
+                d: "The API validates the input, preprocesses the URL, runs the ML model, and stores the result.",
+              },
+              {
+                n: "3",
+                t: "Insights and history",
+                d: "Users review their history and admins inspect analytics without exposing database or model logic to the browser.",
+              },
             ].map((step) => (
               <Card key={step.n} className="flex items-start gap-4 border-border/60 bg-card/60 p-5">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-primary font-semibold text-primary-foreground">

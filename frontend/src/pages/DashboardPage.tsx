@@ -107,7 +107,9 @@ export function DashboardPage() {
             <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
               <span className="rounded-full bg-muted px-3 py-1">Server-side validation</span>
               <span className="rounded-full bg-muted px-3 py-1">ML prediction response</span>
-              <span className="rounded-full bg-muted px-3 py-1">Stored in your account history</span>
+              <span className="rounded-full bg-muted px-3 py-1">
+                Stored in your account history
+              </span>
             </div>
           </Card>
 

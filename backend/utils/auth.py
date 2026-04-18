@@ -7,6 +7,7 @@ import jwt
 import requests
 from flask import current_app, request
 from jwt import InvalidTokenError, PyJWKClient
+from jwt.exceptions import PyJWKClientError
 
 from utils.errors import AuthenticationError, AuthorizationError, ConfigurationError
 
@@ -87,7 +88,7 @@ class SupabaseJWTVerifier:
                 issuer=issuer,
                 options={"verify_aud": verify_audience},
             )
-        except InvalidTokenError:
+        except (InvalidTokenError, PyJWKClientError):
             return self._fetch_user_claims(token)
 
     def _fetch_user_claims(self, token: str) -> dict:
