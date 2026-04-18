@@ -108,7 +108,11 @@ class PhishingModelService:
     def _load_legacy_decision_tree(self, model_path: str):
         try:
             with open(model_path, "rb") as handle:
-                model = _LegacyTreeUnpickler(model_path, handle).load()
+                model = _LegacyTreeUnpickler(
+                    model_path,
+                    handle,
+                    ensure_native_byte_order=False,
+                ).load()
             placeholder = getattr(model, "tree_", None)
             if not isinstance(placeholder, _LegacyTreePlaceholder) or placeholder.state is None:
                 raise ConfigurationError("Legacy model tree state could not be recovered")
