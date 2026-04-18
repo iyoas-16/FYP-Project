@@ -17,8 +17,8 @@ export function LandingPage() {
               Flask ML API + React client
             </div>
             <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
-              Detect phishing links before they{" "}
-              <span className="bg-gradient-primary bg-clip-text text-transparent">reach users</span>
+              Detect phishing links before{" "}
+              <span className="bg-gradient-primary bg-clip-text text-black">they reach users</span>
             </h1>
             <p className="mt-6 text-lg text-muted-foreground">
               PhishGuard combines a production Flask prediction API, Supabase authentication, and a
@@ -122,10 +122,51 @@ export function LandingPage() {
         </div>
       </section>
 
-      <footer className="border-t border-border/60 py-8 text-center text-sm text-muted-foreground">
-        <div className="mx-auto flex items-center justify-center gap-2">
-          <Shield className="h-4 w-4 text-primary" />
-          PhishGuard — built for safer browsing
+      <footer className="border-t border-border/60 bg-card/40">
+        <div className="mx-auto grid max-w-6xl gap-10 px-6 py-12 md:grid-cols-[1.5fr_1fr_1fr]">
+          <div>
+            <div className="flex items-center gap-2 font-semibold tracking-tight">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-primary shadow-glow">
+                <Shield className="h-4 w-4 text-primary-foreground" />
+              </div>
+              <span>PhishGuard</span>
+            </div>
+            <p className="mt-4 max-w-md text-sm text-muted-foreground">
+              Production-ready phishing detection with a Flask ML API, Supabase auth, and a modern
+              dashboard for scans, history, and admin analytics.
+            </p>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Quick links</h3>
+            <div className="mt-4 flex flex-col gap-2 text-sm text-muted-foreground">
+              <Link to="/signup" className="transition-colors hover:text-foreground">
+                Create account
+              </Link>
+              <Link to="/login" className="transition-colors hover:text-foreground">
+                Log in
+              </Link>
+              <Link to="/dashboard" className="transition-colors hover:text-foreground">
+                Dashboard
+              </Link>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Platform</h3>
+            <div className="mt-4 space-y-2 text-sm text-muted-foreground">
+              <p>URL scanning and phishing verdicts</p>
+              <p>User scan history and exports</p>
+              <p>Admin analytics and auth monitoring</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-border/60">
+          <div className="mx-auto flex max-w-6xl flex-col gap-2 px-6 py-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+            <p>PhishGuard - built for safer browsing.</p>
+            <p>&copy; {new Date().getFullYear()} PhishGuard. All rights reserved.</p>
+          </div>
         </div>
       </footer>
     </div>

@@ -7,7 +7,8 @@ type AuthContextValue = {
   user: User | null;
   isAdmin: boolean;
   loading: boolean;
-  signOut: () => Promise<void>;
+  isSigningOut: boolean;
+  signOut: (redirectTo?: string) => Promise<void>;
 };
 
 function readIsAdmin(user: User | null) {
@@ -32,6 +33,7 @@ export const AuthContext = createContext<AuthContextValue | undefined>(undefined
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -39,6 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async function syncSession(nextSession: Session | null) {
       if (!active) return;
       setSession(nextSession);
+      if (nextSession) setIsSigningOut(false);
       setLoading(false);
     }
 
@@ -56,9 +59,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  async function signOut() {
+  async function signOut(redirectTo = "/") {
+    setIsSigningOut(true);
     await supabase.auth.signOut();
     setSession(null);
+    if (typeof window !== "undefined") {
+      window.location.replace(redirectTo);
+    }
   }
 
   const value = useMemo<AuthContextValue>(
@@ -67,9 +74,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user: session?.user ?? null,
       isAdmin: readIsAdmin(session?.user ?? null),
       loading,
+      isSigningOut,
       signOut,
     }),
-    [loading, session],
+    [isSigningOut, loading, session],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -38,16 +38,16 @@ export function ProtectedRoute({
   children: ReactNode;
   requireAdmin?: boolean;
 }) {
-  const { user, isAdmin, loading } = useAuth();
+  const { user, isAdmin, loading, isSigningOut } = useAuth();
 
   useEffect(() => {
-    if (loading || user || typeof window === "undefined") return;
+    if (loading || isSigningOut || user || typeof window === "undefined") return;
 
     const redirect = `${window.location.pathname}${window.location.search}`;
     window.location.replace(`/login?redirect=${encodeURIComponent(redirect)}`);
-  }, [loading, user]);
+  }, [isSigningOut, loading, user]);
 
-  if (loading) {
+  if (loading || isSigningOut) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-24 w-full" />
@@ -60,8 +60,12 @@ export function ProtectedRoute({
     return (
       <GuardShell
         icon={<Loader2 className="h-6 w-6 animate-spin" />}
-        title="Redirecting to sign in"
-        description="Please log in to continue to your phishing detection workspace."
+        title={isSigningOut ? "Signing you out" : "Redirecting to sign in"}
+        description={
+          isSigningOut
+            ? "Taking you back to the landing page."
+            : "Please log in to continue to your phishing detection workspace."
+        }
       />
     );
   }

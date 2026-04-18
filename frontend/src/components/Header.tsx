@@ -36,8 +36,7 @@ export function Header() {
 
   async function handleSignOut() {
     try {
-      await signOut();
-      window.location.replace("/");
+      await signOut("/");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "We couldn't sign you out right now.";
