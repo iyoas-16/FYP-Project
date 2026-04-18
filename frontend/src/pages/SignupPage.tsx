@@ -9,11 +9,13 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import { getDefaultAuthenticatedPath, getSafeRedirectTarget } from "@/lib/auth-navigation";
+import { ApiError, signUpUser } from "@/services/api";
 
 export function SignupPage() {
   const { user, isAdmin, loading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -24,26 +26,47 @@ export function SignupPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      toast.error("Email is required");
+      return;
+    }
     if (password.length < 6) {
       toast.error("Password must be at least 6 characters");
       return;
     }
-
-    setLoading(true);
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { emailRedirectTo: `${window.location.origin}/dashboard` },
-    });
-    setLoading(false);
-
-    if (error) {
-      toast.error(error.message);
+    if (password !== confirmPassword) {
+      toast.error("Passwords do not match");
       return;
     }
 
-    toast.success("Account created! Redirecting...");
-    window.location.assign(getSafeRedirectTarget("/dashboard"));
+    setLoading(true);
+    try {
+      await signUpUser(normalizedEmail, password);
+      const { error } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
+
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      toast.success("Account created! Redirecting...");
+      window.location.assign(getSafeRedirectTarget("/dashboard"));
+    } catch (error) {
+      if (error instanceof ApiError) {
+        toast.error(error.message);
+        return;
+      }
+
+      toast.error("Unable to create account right now");
+      return;
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -85,6 +108,19 @@ export function SignupPage() {
               className="mt-1.5"
             />
             <p className="mt-1 text-xs text-muted-foreground">At least 6 characters.</p>
+          </div>
+          <div>
+            <Label htmlFor="confirm-password">Confirm password</Label>
+            <Input
+              id="confirm-password"
+              type="password"
+              autoComplete="new-password"
+              required
+              minLength={6}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="mt-1.5"
+            />
           </div>
           <Button type="submit" disabled={loading} className="w-full shadow-glow">
             {loading ? "Creating..." : "Create account"}

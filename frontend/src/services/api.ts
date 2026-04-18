@@ -159,6 +159,28 @@ async function parseApiError(response: Response) {
 
 async function request<T>(path: string, options: RequestOptions = {}) {
   const token = await getAccessToken();
+  return requestWithHeaders<T>(path, {
+    ...options,
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+async function requestPublic<T>(path: string, options: RequestOptions = {}) {
+  return requestWithHeaders<T>(path, {
+    ...options,
+    headers: {
+      Accept: "application/json",
+    },
+  });
+}
+
+async function requestWithHeaders<T>(
+  path: string,
+  options: RequestOptions & { headers?: Record<string, string> } = {},
+) {
   const url = new URL(`${getApiBaseUrl()}${path}`);
 
   for (const [key, value] of Object.entries(options.query ?? {})) {
@@ -168,8 +190,7 @@ async function request<T>(path: string, options: RequestOptions = {}) {
   const response = await fetch(url.toString(), {
     method: options.method ?? "GET",
     headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`,
+      ...options.headers,
       ...(options.body !== undefined ? { "Content-Type": "application/json" } : {}),
     },
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
@@ -179,6 +200,22 @@ async function request<T>(path: string, options: RequestOptions = {}) {
 
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
+}
+
+export async function signUpUser(email: string, password: string) {
+  const payload = await requestPublic<unknown>("/auth/signup", {
+    method: "POST",
+    body: { email, password },
+  });
+  const record = asObject(payload) ?? {};
+  const user = asObject(record.user) ?? {};
+
+  return {
+    user: {
+      id: toString(user.id) || undefined,
+      email: toString(user.email) || email,
+    },
+  };
 }
 
 export async function scanUrl(url: string) {

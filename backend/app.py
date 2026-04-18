@@ -5,7 +5,7 @@ from flask_cors import CORS
 
 from config import Settings
 from routes import api_blueprint
-from services import LocalHistoryStore, PhishingModelService, ScanService
+from services import AuthService, LocalHistoryStore, PhishingModelService, ScanService
 from utils import SupabaseJWTVerifier, register_error_handlers
 
 
@@ -22,6 +22,7 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     model_service = PhishingModelService(app.config)
     local_history_store = LocalHistoryStore(app.config["LOCAL_HISTORY_DB_PATH"])
+    app.extensions["auth_service"] = AuthService(app.config)
     app.extensions["jwt_verifier"] = SupabaseJWTVerifier(app.config)
     app.extensions["scan_service"] = ScanService(app.config, model_service, local_history_store)
 

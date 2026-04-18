@@ -79,10 +79,21 @@ class FakeScanService:
         return False
 
 
+class FakeAuthService:
+    def sign_up(self, *, email, password):
+        if "@" not in email:
+            raise ValidationError("Enter a valid email address")
+        if len(password) < 6:
+            raise ValidationError("Password must be at least 6 characters")
+        return {"user": {"id": "user-456", "email": email}}
+
+
 class ApiTestCase(unittest.TestCase):
     def setUp(self) -> None:
         self.app = create_app({"TESTING": True})
         self.client = self.app.test_client()
+        with self.app.app_context():
+            self.app.extensions["auth_service"] = FakeAuthService()
 
     def _inject_services(self, *, is_admin: bool = False) -> FakeScanService:
         with self.app.app_context():
@@ -155,3 +166,23 @@ class ApiTestCase(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["overview"]["total_scans"], 10)
+
+    def test_signup_endpoint_creates_account(self):
+        response = self.client.post(
+            "/auth/signup",
+            json={"email": "user@example.com", "password": "strong-pass"},
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.get_json()["user"]["email"], "user@example.com")
+
+    def test_signup_endpoint_validates_input(self):
+        response = self.client.post(
+            "/auth/signup",
+            json={"email": "invalid-email", "password": "123"},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.get_json()["error"]["message"], "Enter a valid email address"
+        )

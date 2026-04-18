@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from flask import Blueprint, current_app, jsonify, request
 
+from services.auth_service import AuthService
 from services.scan_service import ScanService
 from utils.auth import get_jwt_verifier
 from utils.errors import ConfigurationError, ValidationError
@@ -13,6 +14,13 @@ def _get_scan_service() -> ScanService:
     service = current_app.extensions.get("scan_service")
     if service is None:
         raise ConfigurationError("Scan service is unavailable")
+    return service
+
+
+def _get_auth_service() -> AuthService:
+    service = current_app.extensions.get("auth_service")
+    if service is None:
+        raise ConfigurationError("Auth service is unavailable")
     return service
 
 
@@ -46,12 +54,31 @@ def _parse_history_filters() -> dict:
     }
 
 
-@api_blueprint.post("/scan")
-def scan_url():
-    user = get_jwt_verifier().require_user()
+def _parse_json_body() -> dict:
     payload = request.get_json(silent=False)
     if not isinstance(payload, dict):
         raise ValidationError("Request body must be a JSON object")
+    return payload
+
+
+@api_blueprint.post("/auth/signup")
+def signup():
+    payload = _parse_json_body()
+    return (
+        jsonify(
+            _get_auth_service().sign_up(
+                email=str(payload.get("email", "")),
+                password=str(payload.get("password", "")),
+            )
+        ),
+        201,
+    )
+
+
+@api_blueprint.post("/scan")
+def scan_url():
+    user = get_jwt_verifier().require_user()
+    payload = _parse_json_body()
     result = _get_scan_service().scan_url(user, payload.get("url"))
     return jsonify(result), 201
 
