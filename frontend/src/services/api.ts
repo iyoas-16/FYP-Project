@@ -5,6 +5,7 @@ export type Verdict = "phishing" | "legit";
 export type ScanResult = {
   result: Verdict;
   confidence: number;
+  warning?: string;
 };
 
 export type HistoryItem = {
@@ -72,14 +73,19 @@ function getApiBaseUrl() {
     process.env.API_BASE_URL ||
     process.env.FLASK_API_BASE_URL;
 
-  if (!rawBaseUrl) {
-    throw new ApiError(
-      "Missing backend URL. Set VITE_API_BASE_URL (or VITE_FLASK_API_BASE_URL) to your Flask API base URL.",
-      500,
-    );
+  if (rawBaseUrl) {
+    return rawBaseUrl.replace(/\/+$/, "");
   }
 
-  return rawBaseUrl.replace(/\/+$/, "");
+  if (typeof window !== "undefined") {
+    const { protocol, hostname } = window.location;
+    return `${protocol}//${hostname}:5000`;
+  }
+
+  throw new ApiError(
+    "Missing backend URL. Set VITE_API_BASE_URL (or VITE_FLASK_API_BASE_URL) to your Flask API base URL.",
+    500,
+  );
 }
 
 function asObject(value: unknown) {
@@ -177,6 +183,7 @@ export async function scanUrl(url: string) {
   return {
     result: toVerdict(record.result),
     confidence: toNumber(record.confidence),
+    warning: toString(record.warning) || undefined,
   } satisfies ScanResult;
 }
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections import defaultdict
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
@@ -7,25 +8,45 @@ from urllib.parse import quote
 
 import requests
 
+from services.local_history_store import LocalHistoryStore
 from services.model_service import ModelPrediction, PhishingModelService
 from utils.auth import AuthenticatedUser
 from utils.errors import ConfigurationError, UpstreamServiceError
 from utils.url_processing import PreparedUrl, prepare_url
 
+logger = logging.getLogger(__name__)
+
 
 class ScanService:
-    def __init__(self, config, model_service: PhishingModelService) -> None:
+    def __init__(self, config, model_service: PhishingModelService, local_history_store: LocalHistoryStore) -> None:
         self._config = config
         self._model_service = model_service
+        self._local_history_store = local_history_store
+
+    @property
+    def _scans_table(self) -> str:
+        return self._config.get("SUPABASE_SCANS_TABLE", "scans")
 
     def scan_url(self, user: AuthenticatedUser, raw_url: str) -> dict:
         prepared_url = prepare_url(raw_url, self._config["BRAND_KEYWORDS"])
         prediction = self._model_service.predict(prepared_url)
-        self._save_scan(user, prepared_url, prediction)
-        return {
+        created_at = datetime.now(UTC).isoformat()
+        response = {
             "result": prediction.api_result,
             "confidence": prediction.confidence,
         }
+        try:
+            self._save_scan(user, prepared_url, prediction, created_at=created_at)
+        except (ConfigurationError, UpstreamServiceError) as exc:
+            logger.warning("Scan completed but could not be persisted: %s", exc)
+            self._save_local_scan(
+                user=user,
+                url=prepared_url.original_url,
+                prediction=prediction,
+                created_at=created_at,
+            )
+            response["warning"] = "Scan completed and was saved to local history because the remote history store is unavailable."
+        return response
 
     def get_history(
         self,
@@ -43,18 +64,35 @@ class ScanService:
         if search:
             filters["url"] = f"ilike.*{quote(search)}*"
 
-        total = self._count_records(filters)
-        response = self._request(
-            "GET",
-            f"/rest/v1/{self._config['SUPABASE_SCANS_TABLE']}",
-            params=self._build_history_params(filters, limit, offset, sort),
-        )
-        items = response if isinstance(response, list) else []
-        return {
-            "items": [self._serialize_history_item(item) for item in items],
-            "total": total,
-            "pagination": {"limit": limit, "offset": offset},
-        }
+        try:
+            total = self._count_records(filters, user=user)
+            response = self._request(
+                "GET",
+                f"/rest/v1/{self._scans_table}",
+                params=self._build_history_params(filters, limit, offset, sort),
+                user=user,
+            )
+            items = response if isinstance(response, list) else []
+            return {
+                "items": [self._serialize_history_item(item) for item in items],
+                "total": total,
+                "pagination": {"limit": limit, "offset": offset},
+            }
+        except (ConfigurationError, UpstreamServiceError) as exc:
+            logger.warning("Falling back to local history store: %s", exc)
+            fallback = self._local_history_store.fetch_history(
+                user_id=user.user_id,
+                limit=limit,
+                offset=offset,
+                search=search,
+                result=result,
+                sort=sort,
+            )
+            return {
+                "items": [self._serialize_history_item(item) for item in fallback["items"]],
+                "total": fallback["total"],
+                "pagination": fallback["pagination"],
+            }
 
     def get_admin_stats(self, *, range_value: str = "30d") -> dict:
         now = datetime.now(UTC)
@@ -63,7 +101,7 @@ class ScanService:
         ]
         recent_rows = self._request(
             "GET",
-            f"/rest/v1/{self._config['SUPABASE_SCANS_TABLE']}",
+            f"/rest/v1/{self._scans_table}",
             params={
                 "select": "id,user_id,email,url,result,confidence_score,created_at",
                 "created_at": f"gte.{start.isoformat()}",
@@ -126,7 +164,14 @@ class ScanService:
         )
         return bool(response)
 
-    def _save_scan(self, user: AuthenticatedUser, prepared_url: PreparedUrl, prediction: ModelPrediction) -> None:
+    def _save_scan(
+        self,
+        user: AuthenticatedUser,
+        prepared_url: PreparedUrl,
+        prediction: ModelPrediction,
+        *,
+        created_at: str,
+    ) -> None:
         payload = {
             "user_id": user.user_id,
             "email": user.email,
@@ -148,27 +193,46 @@ class ScanService:
             "model_name": prediction.model_name,
             "model_version": prediction.model_version,
             "metadata": {},
-            "created_at": datetime.now(UTC).isoformat(),
+            "created_at": created_at,
         }
         response = self._request(
             "POST",
-            f"/rest/v1/{self._config['SUPABASE_SCANS_TABLE']}",
+            f"/rest/v1/{self._scans_table}",
             json=payload,
             headers={"Prefer": "return=minimal"},
+            user=user,
         )
         if response not in ({}, None):
             return
 
-    def _count_records(self, extra_filters: Mapping[str, str] | None = None) -> int:
+    def _save_local_scan(
+        self,
+        *,
+        user: AuthenticatedUser,
+        url: str,
+        prediction: ModelPrediction,
+        created_at: str,
+    ) -> None:
+        self._local_history_store.save_scan(
+            user_id=user.user_id,
+            user_email=user.email,
+            url=url,
+            result=prediction.api_result,
+            confidence=prediction.confidence,
+            created_at=created_at,
+        )
+
+    def _count_records(self, extra_filters: Mapping[str, str] | None = None, *, user: AuthenticatedUser | None = None) -> int:
         params = {"select": "id", "limit": "1"}
         if extra_filters:
             params.update(extra_filters)
         response = self._request(
             "GET",
-            f"/rest/v1/{self._config['SUPABASE_SCANS_TABLE']}",
+            f"/rest/v1/{self._scans_table}",
             params=params,
             headers={"Prefer": "count=exact"},
             return_response=True,
+            user=user,
         )
         content_range = response.headers.get("Content-Range", "*/0")
         try:
@@ -200,11 +264,12 @@ class ScanService:
         json: dict | None = None,
         headers: dict | None = None,
         return_response: bool = False,
+        user: AuthenticatedUser | None = None,
     ):
-        self._ensure_configured()
+        api_key, auth_header = self._resolve_credentials(user)
         merged_headers = {
-            "apikey": self._config["SUPABASE_SERVICE_ROLE_KEY"],
-            "Authorization": f"Bearer {self._config['SUPABASE_SERVICE_ROLE_KEY']}",
+            "apikey": api_key,
+            "Authorization": auth_header,
             "Content-Type": "application/json",
         }
         if headers:
@@ -228,9 +293,21 @@ class ScanService:
             return {}
         return response.json()
 
-    def _ensure_configured(self) -> None:
-        if not self._config["SUPABASE_URL"] or not self._config["SUPABASE_SERVICE_ROLE_KEY"]:
-            raise ConfigurationError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be configured")
+    def _resolve_credentials(self, user: AuthenticatedUser | None = None) -> tuple[str, str]:
+        if not self._config.get("SUPABASE_URL"):
+            raise ConfigurationError("SUPABASE_URL must be configured")
+
+        service_role_key = self._config.get("SUPABASE_SERVICE_ROLE_KEY", "")
+        if service_role_key:
+            return service_role_key, f"Bearer {service_role_key}"
+
+        publishable_key = self._config.get("SUPABASE_PUBLISHABLE_KEY", "")
+        if user and user.access_token and publishable_key:
+            return publishable_key, f"Bearer {user.access_token}"
+
+        raise ConfigurationError(
+            "Configure SUPABASE_SERVICE_ROLE_KEY or SUPABASE_PUBLISHABLE_KEY for authenticated scan access"
+        )
 
     @staticmethod
     def _to_api_result(storage_result: str | None) -> str:
@@ -244,9 +321,9 @@ class ScanService:
         return {
             "id": record.get("id"),
             "user_id": record.get("user_id"),
-            "user_email": record.get("email"),
+            "user_email": record.get("email") or record.get("user_email"),
             "url": record.get("url", ""),
-            "result": self._to_api_result(record.get("result")),
-            "confidence": record.get("confidence_score") if record.get("confidence_score") is not None else 0,
+            "result": self._to_api_result(record.get("result")) if record.get("result") in {"phishing", "legitimate"} else (record.get("result") or "legit"),
+            "confidence": record.get("confidence_score") if record.get("confidence_score") is not None else record.get("confidence", 0),
             "created_at": record.get("created_at"),
         }

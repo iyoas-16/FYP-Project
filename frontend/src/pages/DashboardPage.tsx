@@ -121,6 +121,13 @@ export function DashboardPage() {
 
           {result ? (
             <div className="mt-6 space-y-4">
+              {result.warning ? (
+                <Alert className="border-warning/40 bg-warning/10 text-warning">
+                  <ShieldAlert className="h-4 w-4" />
+                  <AlertTitle>Scan saved partially</AlertTitle>
+                  <AlertDescription>{result.warning}</AlertDescription>
+                </Alert>
+              ) : null}
               <ResultDisplay url={submittedUrl} result={result} />
               <div className="flex justify-center">
                 <Button variant="outline" onClick={reset}>

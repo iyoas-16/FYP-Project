@@ -91,6 +91,7 @@ class ApiTestCase(unittest.TestCase):
                 email="admin@example.com" if is_admin else "user@example.com",
                 claims={"sub": "user-123"},
                 is_admin=is_admin,
+                access_token="token",
             )
             self.app.extensions["jwt_verifier"] = FakeVerifier(user)
             scan_service = FakeScanService()

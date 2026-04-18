@@ -16,6 +16,7 @@ Copy `.env.example` to `.env` at the repository root for Docker Compose, and use
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_PUBLISHABLE_KEY`
 - `SUPABASE_JWKS_URL` or `SUPABASE_JWT_SECRET`
 - `SUPABASE_JWT_AUDIENCE`
 - `SUPABASE_SCANS_TABLE`
@@ -34,7 +35,8 @@ Copy `.env.example` to `.env` at the repository root for Docker Compose, and use
 1. Apply the SQL migrations in `backend/supabase/migrations/`.
 2. Keep `profiles` and `user_roles` enabled for auth/role lookup.
 3. Use the new `scans` table as the backend persistence target.
-4. Promote at least one administrator manually in Supabase SQL or the table editor:
+4. For local scan/history requests without a service-role key, set `SUPABASE_PUBLISHABLE_KEY` so the backend can use the caller's authenticated JWT against the existing RLS policies.
+5. Promote at least one administrator manually in Supabase SQL or the table editor:
 
 ```sql
 insert into public.user_roles (user_id, role)
@@ -62,7 +64,8 @@ npm install
 npm run dev
 ```
 
-The frontend expects the Flask API at `VITE_API_BASE_URL`, typically `http://localhost:5000`.
+
+The frontend expects the Flask API at `VITE_API_BASE_URL`, typically `http://127.0.0.1:5000`. If that variable is omitted in local development, the client falls back to the current hostname on port `5000`.
 
 ## Docker
 

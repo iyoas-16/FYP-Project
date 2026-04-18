@@ -23,6 +23,7 @@ def _resolve_path(base_dir: Path, value: str) -> str:
 
 class Settings:
     BASE_DIR = Path(__file__).resolve().parent.parent
+    INSTANCE_DIR = BASE_DIR / "instance"
     TESTING = _as_bool(os.getenv("TESTING"))
     DEBUG = _as_bool(os.getenv("FLASK_DEBUG"))
     JSON_SORT_KEYS = False
@@ -34,9 +35,11 @@ class Settings:
 
     SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
     SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+    SUPABASE_PUBLISHABLE_KEY = os.getenv("SUPABASE_PUBLISHABLE_KEY", os.getenv("SUPABASE_ANON_KEY", ""))
     SUPABASE_SCANS_TABLE = os.getenv("SUPABASE_SCANS_TABLE", "scans")
     SUPABASE_TIMEOUT_SECONDS = int(os.getenv("SUPABASE_TIMEOUT_SECONDS", "10"))
     ADMIN_ANALYTICS_FETCH_LIMIT = int(os.getenv("ADMIN_ANALYTICS_FETCH_LIMIT", "5000"))
+    LOCAL_HISTORY_DB_PATH = _resolve_path(BASE_DIR, os.getenv("LOCAL_HISTORY_DB_PATH", "instance/scan_history.sqlite"))
     CORS_ALLOWED_ORIGINS = _as_list(
         os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
     )
