@@ -123,7 +123,7 @@ class ScanServiceTestCase(unittest.TestCase):
                 LocalHistoryStore(str(Path(temp_dir) / "history.sqlite")),
             )
 
-            result = service.get_admin_stats(range_value="30d")
+            result = service.get_admin_stats(range_value="30d", include_auth_history=True)
 
             self.assertEqual(len(result["auth_history"]), 2)
             self.assertEqual(result["auth_history"][0]["email"], "admin@example.com")
@@ -131,3 +131,18 @@ class ScanServiceTestCase(unittest.TestCase):
             self.assertEqual(
                 result["auth_history"][1]["signup_timestamp"], "2026-04-02T10:00:00+00:00"
             )
+
+    def test_admin_stats_omits_auth_history_when_not_requested(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = _AdminStatsScanService(
+                {
+                    "ADMIN_ANALYTICS_FETCH_LIMIT": 50,
+                    "SUPABASE_SERVICE_ROLE_KEY": "service-role-key",
+                },
+                _FakeModelService(),
+                LocalHistoryStore(str(Path(temp_dir) / "history.sqlite")),
+            )
+
+            result = service.get_admin_stats(range_value="30d", include_auth_history=False)
+
+            self.assertNotIn("auth_history", result)

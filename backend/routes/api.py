@@ -54,6 +54,13 @@ def _parse_history_filters() -> dict:
     }
 
 
+def _parse_bool_query_arg(name: str, default: bool = False) -> bool:
+    value = request.args.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _parse_json_body() -> dict:
     payload = request.get_json(silent=False)
     if not isinstance(payload, dict):
@@ -104,6 +111,7 @@ def history():
 def admin_stats():
     user = get_jwt_verifier().require_user()
     range_value = request.args.get("range", "30d").strip().lower()
+    include_auth_history = _parse_bool_query_arg("include_auth_history")
     if range_value not in {"7d", "30d", "90d"}:
         raise ValidationError("range must be one of 7d, 30d, or 90d")
 
@@ -113,4 +121,9 @@ def admin_stats():
 
         raise AuthorizationError("Admin privileges are required")
 
-    return jsonify(scan_service.get_admin_stats(range_value=range_value))
+    return jsonify(
+        scan_service.get_admin_stats(
+            range_value=range_value,
+            include_auth_history=include_auth_history,
+        )
+    )

@@ -94,7 +94,7 @@ class ScanService:
                 "pagination": fallback["pagination"],
             }
 
-    def get_admin_stats(self, *, range_value: str = "30d") -> dict:
+    def get_admin_stats(self, *, range_value: str = "30d", include_auth_history: bool = False) -> dict:
         now = datetime.now(UTC)
         start = now - {"7d": timedelta(days=7), "30d": timedelta(days=30), "90d": timedelta(days=90)}[
             range_value
@@ -137,9 +137,7 @@ class ScanService:
             for row in serialized_rows
             if isinstance(row.get("confidence"), (int, float))
         ]
-        auth_history = self._fetch_admin_auth_history()
-
-        return {
+        response = {
             "overview": {
                 "total_scans": self._count_records(range_filter),
                 "phishing_count": phishing_count,
@@ -155,8 +153,10 @@ class ScanService:
             ],
             "top_risky_urls": sorted(top_urls.values(), key=lambda item: (-item["count"], item["url"]))[:10],
             "recent_scans": serialized_rows[:20],
-            "auth_history": auth_history,
         }
+        if include_auth_history:
+            response["auth_history"] = self._fetch_admin_auth_history()
+        return response
 
     def user_is_admin(self, user_id: str) -> bool:
         response = self._request(

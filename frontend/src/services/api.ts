@@ -57,6 +57,19 @@ export type AdminAnalytics = {
   }>;
 };
 
+type FetchAdminAnalyticsOptions = {
+  includeAuthHistory?: boolean;
+  forceRefresh?: boolean;
+};
+
+type CachedAdminAnalytics = {
+  data: AdminAnalytics;
+  cachedAt: number;
+};
+
+const ADMIN_ANALYTICS_CACHE_TTL_MS = 60_000;
+const adminAnalyticsCache = new Map<string, CachedAdminAnalytics>();
+
 type RequestOptions = {
   method?: "GET" | "POST";
   body?: unknown;
@@ -265,13 +278,48 @@ export async function fetchHistory(
 }
 
 export async function fetchAdminAnalytics(range: "7d" | "30d" | "90d") {
+  return fetchAdminAnalyticsWithOptions(range);
+}
+
+function createAdminAnalyticsCacheKey(range: "7d" | "30d" | "90d", includeAuthHistory: boolean) {
+  return `${range}:${includeAuthHistory ? "history" : "overview"}`;
+}
+
+export function getCachedAdminAnalytics(
+  range: "7d" | "30d" | "90d",
+  options: Pick<FetchAdminAnalyticsOptions, "includeAuthHistory"> = {},
+) {
+  const includeAuthHistory = options.includeAuthHistory ?? false;
+  const cached = adminAnalyticsCache.get(createAdminAnalyticsCacheKey(range, includeAuthHistory));
+
+  if (!cached) return null;
+  if (Date.now() - cached.cachedAt > ADMIN_ANALYTICS_CACHE_TTL_MS) {
+    adminAnalyticsCache.delete(createAdminAnalyticsCacheKey(range, includeAuthHistory));
+    return null;
+  }
+
+  return cached.data;
+}
+
+export async function fetchAdminAnalyticsWithOptions(
+  range: "7d" | "30d" | "90d",
+  options: FetchAdminAnalyticsOptions = {},
+) {
+  const includeAuthHistory = options.includeAuthHistory ?? false;
+  const cacheKey = createAdminAnalyticsCacheKey(range, includeAuthHistory);
+
+  if (!options.forceRefresh) {
+    const cached = getCachedAdminAnalytics(range, { includeAuthHistory });
+    if (cached) return cached;
+  }
+
   const payload = await request<unknown>("/admin/stats", {
-    query: { range },
+    query: { range, include_auth_history: includeAuthHistory ? "true" : "false" },
   });
   const record = asObject(payload) ?? {};
   const overview = asObject(record.overview) ?? {};
 
-  return {
+  const normalized = {
     overview: {
       total_scans: toNumber(overview.total_scans),
       unique_users: toNumber(overview.unique_users),
@@ -317,4 +365,7 @@ export async function fetchAdminAnalytics(range: "7d" | "30d" | "90d") {
         })
       : [],
   } satisfies AdminAnalytics;
+
+  adminAnalyticsCache.set(cacheKey, { data: normalized, cachedAt: Date.now() });
+  return normalized;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   CalendarClock,
@@ -25,7 +25,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { fetchAdminAnalytics, type AdminAnalytics, type Verdict } from "@/services/api";
+import {
+  fetchAdminAnalyticsWithOptions,
+  getCachedAdminAnalytics,
+  type AdminAnalytics,
+  type Verdict,
+} from "@/services/api";
 import { useAuth } from "@/hooks/use-auth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 
@@ -56,27 +61,44 @@ export function AdminPage() {
       : "overview";
   });
   const [range, setRange] = useState<"7d" | "30d" | "90d">("30d");
-  const [data, setData] = useState<AdminAnalytics | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<AdminAnalytics | null>(() =>
+    getCachedAdminAnalytics("30d", { includeAuthHistory: false }),
+  );
+  const [loading, setLoading] = useState(
+    () => !getCachedAdminAnalytics("30d", { includeAuthHistory: false }),
+  );
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const includeAuthHistory = section === "history";
+  const lastHandledReloadKey = useRef(0);
 
   useEffect(() => {
     if (authLoading || !user || !isAdmin) return;
 
     let active = true;
+    const cached = getCachedAdminAnalytics(range, { includeAuthHistory });
 
     async function loadAnalytics() {
-      setLoading(true);
+      if (cached) {
+        setData(cached);
+        setLoading(false);
+      } else {
+        setLoading(true);
+      }
       setError(null);
 
       try {
-        const response = await fetchAdminAnalytics(range);
+        const response = await fetchAdminAnalyticsWithOptions(range, {
+          includeAuthHistory,
+          forceRefresh: reloadKey > lastHandledReloadKey.current,
+        });
         if (!active) return;
+        lastHandledReloadKey.current = reloadKey;
         setData(response);
       } catch (err) {
         if (!active) return;
         setError(err instanceof Error ? err.message : "Failed to load admin analytics.");
+        if (!cached) setData(null);
       } finally {
         if (active) setLoading(false);
       }
@@ -87,7 +109,7 @@ export function AdminPage() {
     return () => {
       active = false;
     };
-  }, [authLoading, isAdmin, range, reloadKey, user]);
+  }, [authLoading, includeAuthHistory, isAdmin, range, reloadKey, user]);
 
   const flaggedCount = useMemo(() => data?.overview.phishing_count ?? 0, [data]);
   const threatRate = useMemo(() => {

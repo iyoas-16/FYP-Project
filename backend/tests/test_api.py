@@ -61,8 +61,8 @@ class FakeScanService:
             "pagination": {"limit": limit, "offset": offset},
         }
 
-    def get_admin_stats(self, *, range_value):
-        return {
+    def get_admin_stats(self, *, range_value, include_auth_history=False):
+        response = {
             "overview": {
                 "total_scans": 10,
                 "phishing_count": 4,
@@ -74,6 +74,9 @@ class FakeScanService:
             "top_risky_urls": [],
             "recent_scans": [],
         }
+        if include_auth_history:
+            response["auth_history"] = [{"email": "admin@example.com", "is_admin": True}]
+        return response
 
     def user_is_admin(self, user_id):
         return False
@@ -166,6 +169,16 @@ class ApiTestCase(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["overview"]["total_scans"], 10)
+
+    def test_admin_stats_can_include_auth_history(self):
+        self._inject_services(is_admin=True)
+        response = self.client.get(
+            "/admin/stats?range=7d&include_auth_history=true",
+            headers={"Authorization": "Bearer token"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["auth_history"][0]["email"], "admin@example.com")
 
     def test_signup_endpoint_creates_account(self):
         response = self.client.post(
