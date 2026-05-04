@@ -1,6 +1,7 @@
 import { createContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { getProfileRole } from "@/lib/profile-role";
 
 type AuthContextValue = {
   session: Session | null;
@@ -11,27 +12,11 @@ type AuthContextValue = {
   signOut: (redirectTo?: string) => Promise<void>;
 };
 
-function readIsAdmin(user: User | null) {
-  if (!user) return false;
-
-  const roles = new Set<string>();
-  const appMetadata = user.app_metadata;
-
-  if (typeof user.role === "string") roles.add(user.role.toLowerCase());
-  if (typeof appMetadata?.role === "string") roles.add(appMetadata.role.toLowerCase());
-  if (Array.isArray(appMetadata?.roles)) {
-    for (const role of appMetadata.roles) {
-      if (typeof role === "string") roles.add(role.toLowerCase());
-    }
-  }
-
-  return roles.has("admin") || roles.has("service_role");
-}
-
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
+  const [role, setRole] = useState<"user" | "admin">("user");
   const [loading, setLoading] = useState(true);
   const [isSigningOut, setIsSigningOut] = useState(false);
 
@@ -40,9 +25,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     async function syncSession(nextSession: Session | null) {
       if (!active) return;
+
       setSession(nextSession);
-      if (nextSession) setIsSigningOut(false);
-      setLoading(false);
+      setRole("user");
+      setLoading(true);
+
+      if (!nextSession?.user) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const nextRole = await getProfileRole(nextSession.user.id);
+        if (active) {
+          setRole(nextRole);
+        }
+      } catch {
+        if (active) {
+          setRole("user");
+        }
+      } finally {
+        if (active) {
+          if (nextSession) setIsSigningOut(false);
+          setLoading(false);
+        }
+      }
     }
 
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
@@ -63,6 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsSigningOut(true);
     await supabase.auth.signOut();
     setSession(null);
+    setRole("user");
     if (typeof window !== "undefined") {
       window.location.replace(redirectTo);
     }
@@ -72,12 +80,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       session,
       user: session?.user ?? null,
-      isAdmin: readIsAdmin(session?.user ?? null),
+      isAdmin: role === "admin",
       loading,
       isSigningOut,
       signOut,
     }),
-    [isSigningOut, loading, session],
+    [isSigningOut, loading, role, session],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

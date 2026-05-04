@@ -3,18 +3,20 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Shield } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+import { getDefaultAuthenticatedPath, getSafeRedirectTarget } from "@/lib/auth-navigation";
+import { getLoginErrorMessage } from "@/lib/auth-errors";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { useAuth } from "@/hooks/use-auth";
-import { getDefaultAuthenticatedPath, getSafeRedirectTarget } from "@/lib/auth-navigation";
 
 export function LoginPage() {
   const { user, isAdmin, loading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && user && typeof window !== "undefined") {
@@ -25,16 +27,33 @@ export function LoginPage() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     const normalizedEmail = email.trim().toLowerCase();
+
+    setError(null);
+
+    if (!normalizedEmail) {
+      setError("Email is required.");
+      return;
+    }
+
+    if (!password) {
+      setError("Password is required.");
+      return;
+    }
+
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
+
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: normalizedEmail,
       password,
     });
+
     setLoading(false);
+
     if (error) {
-      toast.error(error.message);
+      setError(getLoginErrorMessage(error));
       return;
     }
+
     toast.success("Welcome back");
     window.location.assign(getSafeRedirectTarget("/dashboard"));
   }
@@ -61,7 +80,10 @@ export function LoginPage() {
               autoComplete="email"
               required
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setError(null);
+              }}
               className="mt-1.5"
             />
           </div>
@@ -73,10 +95,14 @@ export function LoginPage() {
               autoComplete="current-password"
               required
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setError(null);
+              }}
               className="mt-1.5"
             />
           </div>
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
           <Button type="submit" disabled={loading} className="w-full shadow-glow">
             {loading ? "Signing in..." : "Sign in"}
           </Button>

@@ -127,6 +127,36 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(payload["confidence"], 0.91)
         self.assertEqual(len(scan_service.saved_payloads), 1)
 
+    def test_predict_endpoint_returns_prediction(self):
+        scan_service = self._inject_services()
+
+        response = self.client.post(
+            "/predict",
+            json={"url": "paypal.com/login"},
+            headers={"Authorization": "Bearer token"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["prediction"], "phishing")
+        self.assertEqual(len(scan_service.saved_payloads), 1)
+
+    def test_predict_endpoint_handles_preflight(self):
+        self._inject_services()
+
+        response = self.client.open(
+            "/predict",
+            method="OPTIONS",
+            headers={
+                "Origin": "http://127.0.0.1:3004",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "authorization,content-type",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers.get("Access-Control-Allow-Origin"), "http://127.0.0.1:3004")
+        self.assertIn("POST", response.headers.get("Access-Control-Allow-Methods", ""))
+
     def test_scan_endpoint_validates_input(self):
         self._inject_services()
         response = self.client.post(

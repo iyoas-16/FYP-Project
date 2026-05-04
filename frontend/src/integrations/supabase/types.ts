@@ -46,16 +46,19 @@ export type Database = {
           created_at: string;
           email: string | null;
           id: string;
+          role: "user" | "admin";
         };
         Insert: {
           created_at?: string;
           email?: string | null;
           id: string;
+          role?: "user" | "admin";
         };
         Update: {
           created_at?: string;
           email?: string | null;
           id?: string;
+          role?: "user" | "admin";
         };
         Relationships: [];
       };

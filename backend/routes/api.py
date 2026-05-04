@@ -90,6 +90,18 @@ def scan_url():
     return jsonify(result), 201
 
 
+@api_blueprint.post("/predict")
+def predict_url():
+    user = get_jwt_verifier().require_user()
+    payload = _parse_json_body()
+    result = _get_scan_service().scan_url(user, payload.get("url"))
+    prediction = str(result.get("result", "")).strip().lower()
+    return (
+        jsonify({"prediction": "phishing" if prediction == "phishing" else "safe"}),
+        200,
+    )
+
+
 @api_blueprint.get("/history")
 def history():
     user = get_jwt_verifier().require_user()

@@ -3,13 +3,14 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Shield } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+import { getDefaultAuthenticatedPath, getSafeRedirectTarget } from "@/lib/auth-navigation";
+import { getSignupErrorMessage } from "@/lib/auth-errors";
+import { getSignupValidationError } from "@/lib/signup-validation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { useAuth } from "@/hooks/use-auth";
-import { getDefaultAuthenticatedPath, getSafeRedirectTarget } from "@/lib/auth-navigation";
-import { ApiError, signUpUser } from "@/services/api";
 
 export function SignupPage() {
   const { user, isAdmin, loading: authLoading } = useAuth();
@@ -17,6 +18,8 @@ export function SignupPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [confirmPasswordError, setConfirmPasswordError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && user && typeof window !== "undefined") {
@@ -27,46 +30,39 @@ export function SignupPage() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     const normalizedEmail = email.trim().toLowerCase();
+    const validationError = getSignupValidationError(normalizedEmail, password, confirmPassword);
 
-    if (!normalizedEmail) {
-      toast.error("Email is required");
-      return;
-    }
-    if (password.length < 6) {
-      toast.error("Password must be at least 6 characters");
-      return;
-    }
-    if (password !== confirmPassword) {
-      toast.error("Passwords do not match");
+    setError(null);
+    setConfirmPasswordError(null);
+
+    if (validationError) {
+      if (validationError.field === "confirmPassword") {
+        setConfirmPasswordError(validationError.message);
+      } else {
+        setError(validationError.message);
+      }
       return;
     }
 
     setLoading(true);
-    try {
-      await signUpUser(normalizedEmail, password);
-      const { error } = await supabase.auth.signInWithPassword({
-        email: normalizedEmail,
-        password,
-      });
 
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
+    const { data, error } = await supabase.auth.signUp({
+      email: normalizedEmail,
+      password,
+    });
 
-      toast.success("Account created! Redirecting...");
-      window.location.assign(getSafeRedirectTarget("/dashboard"));
-    } catch (error) {
-      if (error instanceof ApiError) {
-        toast.error(error.message);
-        return;
-      }
-
-      toast.error("Unable to create account right now");
-      return;
-    } finally {
+    if (error) {
       setLoading(false);
+      setError(getSignupErrorMessage(error));
+      return;
     }
+
+    setLoading(false);
+    if (data.session) {
+      await supabase.auth.signOut();
+    }
+    toast.success("Account created. Please log in to continue.");
+    window.location.assign("/login");
   }
 
   return (
@@ -91,7 +87,10 @@ export function SignupPage() {
               autoComplete="email"
               required
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                setError(null);
+              }}
               className="mt-1.5"
             />
           </div>
@@ -104,7 +103,11 @@ export function SignupPage() {
               required
               minLength={6}
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setError(null);
+                setConfirmPasswordError(null);
+              }}
               className="mt-1.5"
             />
             <p className="mt-1 text-xs text-muted-foreground">At least 6 characters.</p>
@@ -118,10 +121,18 @@ export function SignupPage() {
               required
               minLength={6}
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={(e) => {
+                setConfirmPassword(e.target.value);
+                setConfirmPasswordError(null);
+              }}
+              aria-invalid={Boolean(confirmPasswordError)}
               className="mt-1.5"
             />
+            {confirmPasswordError ? (
+              <p className="mt-1 text-xs text-destructive">{confirmPasswordError}</p>
+            ) : null}
           </div>
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
           <Button type="submit" disabled={loading} className="w-full shadow-glow">
             {loading ? "Creating..." : "Create account"}
           </Button>

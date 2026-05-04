@@ -23,6 +23,22 @@ def _as_list(value: str | None) -> list[str]:
     return [item.strip().lower() for item in value.split(",") if item.strip()]
 
 
+def _default_cors_origins() -> list[str]:
+    origins: list[str] = []
+    for host in ("localhost", "127.0.0.1"):
+        for port in (3000, 3001, 3002, 3003, 3004, 3005, 8080):
+            origins.append(f"http://{host}:{port}")
+    return origins
+
+
+def _cors_origins(value: str | None) -> list[str]:
+    origins: list[str] = []
+    for origin in [*_as_list(value), *_default_cors_origins()]:
+        if origin not in origins:
+            origins.append(origin)
+    return origins
+
+
 def _resolve_path(base_dir: Path, value: str) -> str:
     path = Path(value)
     return str(path if path.is_absolute() else base_dir / path)
@@ -47,12 +63,7 @@ class Settings:
     SUPABASE_TIMEOUT_SECONDS = int(os.getenv("SUPABASE_TIMEOUT_SECONDS", "10"))
     ADMIN_ANALYTICS_FETCH_LIMIT = int(os.getenv("ADMIN_ANALYTICS_FETCH_LIMIT", "5000"))
     LOCAL_HISTORY_DB_PATH = _resolve_path(BASE_DIR, os.getenv("LOCAL_HISTORY_DB_PATH", "instance/scan_history.sqlite"))
-    CORS_ALLOWED_ORIGINS = _as_list(
-        os.getenv(
-            "CORS_ALLOWED_ORIGINS",
-            "http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://127.0.0.1:8080",
-        )
-    )
+    CORS_ALLOWED_ORIGINS = _cors_origins(os.getenv("CORS_ALLOWED_ORIGINS"))
 
     SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
     SUPABASE_JWKS_URL = os.getenv("SUPABASE_JWKS_URL", "")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 import posixpath
 import re
 from dataclasses import dataclass
@@ -9,6 +10,7 @@ from utils.errors import ValidationError
 
 _CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f]+")
 _SCHEME_PREFIX = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://")
+_HOST_LABEL = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", re.IGNORECASE)
 
 
 @dataclass(frozen=True)
@@ -26,9 +28,29 @@ def _normalize_hostname(hostname: str) -> str:
     if not sanitized:
         raise ValidationError("URL hostname is required")
     try:
-        return sanitized.encode("idna").decode("ascii")
+        normalized = sanitized.encode("idna").decode("ascii")
     except UnicodeError as exc:
         raise ValidationError("URL hostname is invalid") from exc
+
+    if any(character.isspace() for character in normalized):
+        raise ValidationError("URL hostname is invalid")
+
+    try:
+        ipaddress.ip_address(normalized)
+        return normalized
+    except ValueError:
+        pass
+
+    if normalized == "localhost":
+        return normalized
+
+    labels = normalized.split(".")
+    if len(labels) < 2:
+        raise ValidationError("URL hostname must be a fully qualified domain or IP address")
+    if any(not _HOST_LABEL.fullmatch(label) for label in labels):
+        raise ValidationError("URL hostname is invalid")
+
+    return normalized
 
 
 def _normalize_path(path: str) -> str:
