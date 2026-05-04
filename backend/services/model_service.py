@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from threading import Lock
 from typing import Any
+import warnings
 
 import joblib
 import numpy as np
 from joblib.numpy_pickle import NumpyUnpickler
+from sklearn.exceptions import InconsistentVersionWarning
 from sklearn.tree import _tree
 
 from utils.errors import ConfigurationError
@@ -22,10 +25,21 @@ class _LegacyTreePlaceholder:
         self.state = state
 
 
+class _LegacyLossPlaceholder:
+    def __init__(self, *args) -> None:
+        self.args = args
+        self.state = None
+
+    def __setstate__(self, state) -> None:
+        self.state = state
+
+
 class _LegacyTreeUnpickler(NumpyUnpickler):
     def find_class(self, module, name):
         if module == "sklearn.tree._tree" and name == "Tree":
             return _LegacyTreePlaceholder
+        if module == "sklearn.ensemble._gb_losses":
+            return _LegacyLossPlaceholder
         return super().find_class(module, name)
 
 
@@ -40,23 +54,28 @@ class ModelPrediction:
 
 
 class PhishingModelService:
+    _FEATURE_EXTRACTION_FEATURE_COUNT = 30
+
     def __init__(self, config) -> None:
         self._config = config
         self._load_lock = Lock()
         self._model: Any | None = None
         self._vectorizer: Any | None = None
+        self._input_mode: str | None = None
 
     def predict(self, prepared_url: PreparedUrl) -> ModelPrediction:
         self._ensure_loaded()
-        features = self._transform([prepared_url.combined_text])
-        prediction = int(self._model.predict(features)[0])
+        features = self._transform(prepared_url)
+        prediction = self._model.predict(features)[0]
+        phishing_label = self._resolve_phishing_label()
         phishing_probability = self._extract_probability(features)
-        confidence = (
-            round(phishing_probability if prediction == 1 else 1 - phishing_probability, 4)
-            if phishing_probability is not None
-            else 0.5
-        )
-        is_phishing = prediction == 1
+        if phishing_probability is None:
+            confidence = 0.5
+        elif prediction == phishing_label:
+            confidence = round(phishing_probability, 4)
+        else:
+            confidence = round(1 - phishing_probability, 4)
+        is_phishing = prediction == phishing_label
         return ModelPrediction(
             storage_result="phishing" if is_phishing else "legitimate",
             api_result="phishing" if is_phishing else "legit",
@@ -74,23 +93,40 @@ class PhishingModelService:
             if self._model is not None:
                 return
             try:
-                self._model = joblib.load(self._config["MODEL_PATH"])
-                self._vectorizer = joblib.load(self._config["VECTORIZER_PATH"])
+                self._model = self._load_model(self._config["MODEL_PATH"])
+                self._vectorizer = self._load_vectorizer(self._config["VECTORIZER_PATH"])
+                self._input_mode = self._determine_input_mode()
             except FileNotFoundError as exc:
                 raise ConfigurationError("Model artifacts are missing from the configured paths") from exc
-            except ValueError as exc:
-                if "node array from the pickle has an incompatible dtype" not in str(exc):
-                    raise ConfigurationError(f"Unable to load model artifacts: {exc}") from exc
-                self._model = self._load_legacy_decision_tree(self._config["MODEL_PATH"])
-                self._vectorizer = joblib.load(self._config["VECTORIZER_PATH"])
             except Exception as exc:
                 raise ConfigurationError(f"Unable to load model artifacts: {exc}") from exc
 
-    def _transform(self, text_inputs: list[str]):
+    def _transform(self, prepared_url: PreparedUrl):
+        if self._input_mode == "vectorizer":
+            return self._transform_text_inputs([prepared_url.combined_text])
+        if self._input_mode == "feature_extraction":
+            return self._extract_url_features(prepared_url)
+        raise ConfigurationError("Model input mode is not configured")
+
+    def _transform_text_inputs(self, text_inputs: list[str]):
         if self._vectorizer is None:
-            return text_inputs
+            raise ConfigurationError("Vectorizer-backed model is not configured correctly")
         transformed = self._vectorizer.transform(text_inputs)
         return transformed.toarray() if hasattr(transformed, "toarray") else transformed
+
+    def _extract_url_features(self, prepared_url: PreparedUrl):
+        try:
+            from feature import FeatureExtraction
+        except ImportError as exc:
+            raise ConfigurationError(f"Feature extraction dependencies are unavailable: {exc}") from exc
+
+        feature_values = np.asarray(FeatureExtraction(prepared_url.normalized_url).getFeaturesList(), dtype=float)
+        expected_feature_count = int(getattr(self._model, "n_features_in_", feature_values.shape[-1]))
+        if feature_values.ndim != 1 or len(feature_values) != expected_feature_count:
+            raise ConfigurationError(
+                f"Feature extraction produced {len(feature_values)} values but the model expects {expected_feature_count}"
+            )
+        return feature_values.reshape(1, -1)
 
     def _extract_probability(self, features) -> float | None:
         if not hasattr(self._model, "predict_proba"):
@@ -100,40 +136,146 @@ class PhishingModelService:
         if probability_sum > 0:
             probabilities = probabilities / probability_sum
         classes = np.asarray(getattr(self._model, "classes_", []))
-        if 1 in classes:
-            phishing_index = int(np.where(classes == 1)[0][0])
+        phishing_label = self._resolve_phishing_label()
+        if phishing_label in classes:
+            phishing_index = int(np.where(classes == phishing_label)[0][0])
             return float(probabilities[phishing_index])
         return float(max(probabilities))
 
-    def _load_legacy_decision_tree(self, model_path: str):
+    def _load_model(self, model_path: str):
+        try:
+            return self._load_joblib_artifact(model_path)
+        except Exception as exc:
+            if not self._requires_legacy_compatibility(exc):
+                raise
+            return self._load_legacy_model(model_path)
+
+    def _load_vectorizer(self, vectorizer_path: str):
+        path = Path(vectorizer_path)
+        if not path.exists():
+            return None
+
+        vectorizer = self._load_joblib_artifact(path)
+        if self._vectorizer_feature_count(vectorizer) == getattr(self._model, "n_features_in_", None):
+            return vectorizer
+        return None
+
+    def _determine_input_mode(self) -> str:
+        if self._vectorizer is not None:
+            return "vectorizer"
+        if getattr(self._model, "n_features_in_", None) == self._FEATURE_EXTRACTION_FEATURE_COUNT:
+            return "feature_extraction"
+        raise ConfigurationError("Model artifacts are incompatible with the configured input pipeline")
+
+    def _load_legacy_model(self, model_path: str):
         try:
             with open(model_path, "rb") as handle:
-                model = _LegacyTreeUnpickler(
-                    model_path,
-                    handle,
-                    ensure_native_byte_order=False,
-                ).load()
-            placeholder = getattr(model, "tree_", None)
-            if not isinstance(placeholder, _LegacyTreePlaceholder) or placeholder.state is None:
-                raise ConfigurationError("Legacy model tree state could not be recovered")
-
-            tree_state = dict(placeholder.state)
-            nodes = tree_state["nodes"]
-            if "missing_go_to_left" not in nodes.dtype.names:
-                tree_state["nodes"] = self._upgrade_legacy_nodes(nodes)
-
-            restored_tree = _tree.Tree(
-                model.n_features_in_,
-                np.array([len(model.classes_)], dtype=np.intp),
-                model.n_outputs_,
-            )
-            restored_tree.__setstate__(tree_state)
-            model.tree_ = restored_tree
-            if not hasattr(model, "monotonic_cst"):
-                model.monotonic_cst = None
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", category=InconsistentVersionWarning)
+                    model = _LegacyTreeUnpickler(
+                        model_path,
+                        handle,
+                        ensure_native_byte_order=False,
+                    ).load()
+            self._restore_legacy_sklearn_state(model)
             return model
         except Exception as exc:
-            raise ConfigurationError(f"Unable to rebuild legacy decision tree artifact: {exc}") from exc
+            raise ConfigurationError(f"Unable to rebuild legacy model artifact: {exc}") from exc
+
+    def _restore_legacy_sklearn_state(self, artifact: Any, seen: set[int] | None = None) -> None:
+        if seen is None:
+            seen = set()
+
+        artifact_id = id(artifact)
+        if artifact_id in seen:
+            return
+        seen.add(artifact_id)
+
+        if hasattr(artifact, "tree_") and isinstance(getattr(artifact, "tree_"), _LegacyTreePlaceholder):
+            self._restore_tree(artifact)
+        if hasattr(artifact, "_loss") and isinstance(getattr(artifact, "_loss"), _LegacyLossPlaceholder):
+            if hasattr(artifact, "_get_loss"):
+                artifact._loss = artifact._get_loss(sample_weight=None)
+            else:
+                raise ConfigurationError("Legacy gradient boosting loss state could not be rebuilt")
+
+        if isinstance(artifact, np.ndarray):
+            if artifact.dtype == object:
+                for item in artifact.flat:
+                    self._restore_legacy_sklearn_state(item, seen)
+            return
+        if isinstance(artifact, dict):
+            for item in artifact.values():
+                self._restore_legacy_sklearn_state(item, seen)
+            return
+        if isinstance(artifact, (list, tuple, set)):
+            for item in artifact:
+                self._restore_legacy_sklearn_state(item, seen)
+            return
+        if hasattr(artifact, "__dict__"):
+            for item in artifact.__dict__.values():
+                self._restore_legacy_sklearn_state(item, seen)
+
+    def _restore_tree(self, estimator: Any) -> None:
+        placeholder = getattr(estimator, "tree_", None)
+        if not isinstance(placeholder, _LegacyTreePlaceholder) or placeholder.state is None:
+            raise ConfigurationError("Legacy model tree state could not be recovered")
+
+        tree_state = dict(placeholder.state)
+        nodes = tree_state["nodes"]
+        if "missing_go_to_left" not in nodes.dtype.names:
+            tree_state["nodes"] = self._upgrade_legacy_nodes(nodes)
+
+        restored_tree = _tree.Tree(
+            estimator.n_features_in_,
+            self._tree_n_classes(estimator),
+            estimator.n_outputs_,
+        )
+        restored_tree.__setstate__(tree_state)
+        estimator.tree_ = restored_tree
+        if not hasattr(estimator, "monotonic_cst"):
+            estimator.monotonic_cst = None
+
+    def _resolve_phishing_label(self):
+        classes = np.asarray(getattr(self._model, "classes_", []))
+        if classes.size == 0:
+            return 1
+
+        class_values = set(classes.tolist())
+        if class_values == {-1, 1}:
+            return -1
+        if 1 in class_values:
+            return 1
+        return classes[0].item() if hasattr(classes[0], "item") else classes[0]
+
+    @staticmethod
+    def _vectorizer_feature_count(vectorizer: Any) -> int | None:
+        if hasattr(vectorizer, "get_feature_names_out"):
+            return len(vectorizer.get_feature_names_out())
+        vocabulary = getattr(vectorizer, "vocabulary_", None)
+        if isinstance(vocabulary, dict):
+            return len(vocabulary)
+        return None
+
+    @staticmethod
+    def _load_joblib_artifact(path: str | Path):
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=InconsistentVersionWarning)
+            return joblib.load(path)
+
+    @staticmethod
+    def _requires_legacy_compatibility(exc: Exception) -> bool:
+        message = str(exc)
+        return "sklearn.ensemble._gb_losses" in message or "node array from the pickle has an incompatible dtype" in message
+
+    @staticmethod
+    def _tree_n_classes(estimator: Any):
+        if hasattr(estimator, "n_classes_"):
+            n_classes = getattr(estimator, "n_classes_")
+            if np.isscalar(n_classes):
+                return np.array([int(n_classes)], dtype=np.intp)
+            return np.asarray(n_classes, dtype=np.intp)
+        return np.ones(getattr(estimator, "n_outputs_", 1), dtype=np.intp)
 
     @staticmethod
     def _upgrade_legacy_nodes(nodes):

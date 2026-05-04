@@ -34,6 +34,8 @@ class ScanService:
         response = {
             "result": prediction.api_result,
             "confidence": prediction.confidence,
+            "model_name": prediction.model_name,
+            "model_version": prediction.model_version,
         }
         try:
             self._save_scan(user, prepared_url, prediction, created_at=created_at)

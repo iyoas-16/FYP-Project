@@ -16,7 +16,7 @@ PhishGuard is a full-stack phishing detection platform built around a Flask mach
 
 The backend is a Flask API that:
 
-- loads the trained model and vectorizer from `model.pkl` and `vectorizer.pkl`
+- loads the trained model from `model.pkl` and uses either a matching vectorizer or the built-in URL feature extractor, depending on the artifact pipeline
 - normalizes and preprocesses URLs before inference
 - verifies Supabase JWTs for protected routes
 - persists scans to the `scans` table in Supabase
@@ -192,7 +192,7 @@ Required or commonly used backend settings:
 | `ADMIN_ROLES` | Comma-separated admin roles |
 | `CORS_ALLOWED_ORIGINS` | Allowed frontend origins |
 | `MODEL_PATH` | Path to the trained model file |
-| `VECTORIZER_PATH` | Path to the vectorizer file |
+| `VECTORIZER_PATH` | Optional path to a matching vectorizer file for text-vectorizer models |
 | `LOCAL_HISTORY_DB_PATH` | SQLite fallback history path |
 | `SUPABASE_TIMEOUT_SECONDS` | Request timeout for upstream Supabase calls |
 | `ADMIN_ANALYTICS_FETCH_LIMIT` | Cap for analytics row fetches |

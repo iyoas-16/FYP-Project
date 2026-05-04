@@ -41,7 +41,12 @@ class FakeScanService:
         if str(raw_url).startswith("ftp://"):
             raise ValidationError("Only http and https URLs are supported")
         self.saved_payloads.append({"user_id": user.user_id, "url": raw_url})
-        return {"result": "phishing", "confidence": 0.91}
+        return {
+            "result": "phishing",
+            "confidence": 0.91,
+            "model_name": "GradientBoostingClassifier",
+            "model_version": "test-model",
+        }
 
     def get_history(self, user, limit, offset, **kwargs):
         return {
@@ -137,7 +142,16 @@ class ApiTestCase(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.get_json()["prediction"], "phishing")
+        self.assertEqual(
+            response.get_json(),
+            {
+                "prediction": "phishing",
+                "result": "phishing",
+                "confidence": 0.91,
+                "model_name": "GradientBoostingClassifier",
+                "model_version": "test-model",
+            },
+        )
         self.assertEqual(len(scan_service.saved_payloads), 1)
 
     def test_predict_endpoint_handles_preflight(self):

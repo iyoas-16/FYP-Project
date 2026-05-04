@@ -34,6 +34,17 @@ export function Header() {
               >
                 Dashboard
               </Link>
+              <Link
+                to="/history"
+                className={cn(
+                  buttonVariants({
+                    variant: pathname === "/history" ? "secondary" : "ghost",
+                    size: "sm",
+                  }),
+                )}
+              >
+                History
+              </Link>
               {isAdmin ? (
                 <Link
                   to="/admin"

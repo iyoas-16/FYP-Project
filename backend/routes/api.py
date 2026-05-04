@@ -97,7 +97,15 @@ def predict_url():
     result = _get_scan_service().scan_url(user, payload.get("url"))
     prediction = str(result.get("result", "")).strip().lower()
     return (
-        jsonify({"prediction": "phishing" if prediction == "phishing" else "safe"}),
+        jsonify(
+            {
+                "prediction": "phishing" if prediction == "phishing" else "safe",
+                "result": prediction,
+                "confidence": result.get("confidence"),
+                "model_name": result.get("model_name"),
+                "model_version": result.get("model_version"),
+            }
+        ),
         200,
     )
 

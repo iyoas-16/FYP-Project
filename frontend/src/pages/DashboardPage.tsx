@@ -79,14 +79,20 @@ export function DashboardPage() {
               <Card>
                 <CardHeader>
                   <CardTitle>Prediction result</CardTitle>
-                  <CardDescription>
-                    The backend returns a simple phishing/safe verdict.
-                  </CardDescription>
+                  <CardDescription>The backend returns the verdict and confidence score.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="rounded-lg border border-border/60 bg-card p-4">
-                    <p className="text-sm text-muted-foreground">Verdict</p>
-                    <p className="mt-2 text-2xl font-semibold capitalize">{result.prediction}</p>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="rounded-lg border border-border/60 bg-card p-4">
+                      <p className="text-sm text-muted-foreground">Verdict</p>
+                      <p className="mt-2 text-2xl font-semibold capitalize">{result.prediction}</p>
+                    </div>
+                    <div className="rounded-lg border border-border/60 bg-card p-4">
+                      <p className="text-sm text-muted-foreground">Confidence</p>
+                      <p className="mt-2 text-2xl font-semibold">
+                        {result.confidence !== null ? `${(result.confidence * 100).toFixed(2)}%` : "Unavailable"}
+                      </p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

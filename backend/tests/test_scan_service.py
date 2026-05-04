@@ -84,6 +84,8 @@ class ScanServiceTestCase(unittest.TestCase):
 
             self.assertEqual(result["result"], "phishing")
             self.assertEqual(result["confidence"], 0.88)
+            self.assertEqual(result["model_name"], "DecisionTreeClassifier")
+            self.assertEqual(result["model_version"], "test-model")
             self.assertIn("warning", result)
             self.assertEqual(history["total"], 1)
             self.assertEqual(history["items"][0]["url"], "https://paypal.com/login")

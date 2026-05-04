@@ -4,6 +4,39 @@ export type Prediction = "phishing" | "safe";
 
 export type PredictionResponse = {
   prediction: Prediction;
+  result: "phishing" | "legit";
+  confidence: number | null;
+  modelName: string | null;
+  modelVersion: string | null;
+};
+
+export type HistorySort = "newest" | "oldest" | "confidence_desc" | "confidence_asc";
+
+export type HistoryItem = {
+  id?: string;
+  userId?: string;
+  userEmail?: string | null;
+  url: string;
+  result: "phishing" | "legit";
+  confidence: number | null;
+  created_at?: string;
+};
+
+export type HistoryResponse = {
+  items: HistoryItem[];
+  total: number;
+  pagination: {
+    limit: number;
+    offset: number;
+  };
+};
+
+export type HistoryFilters = {
+  limit: number;
+  offset: number;
+  search: string;
+  result: "" | "phishing" | "legit";
+  sort: HistorySort;
 };
 
 export type AdminLog = {
@@ -139,7 +172,46 @@ export async function predictUrl(url: string) {
 
   return {
     prediction: toPrediction(record.prediction),
+    result: record.result === "phishing" ? "phishing" : "legit",
+    confidence: typeof record.confidence === "number" ? record.confidence : null,
+    modelName: toString(record.model_name) || null,
+    modelVersion: toString(record.model_version) || null,
   } satisfies PredictionResponse;
+}
+
+export async function fetchHistory(filters: HistoryFilters): Promise<HistoryResponse> {
+  const payload = await request<unknown>("/history", {
+    query: {
+      limit: filters.limit,
+      offset: filters.offset,
+      search: filters.search || undefined,
+      result: filters.result || undefined,
+      sort: filters.sort,
+    },
+  });
+  const record = asObject(payload) ?? {};
+  const items = Array.isArray(record.items) ? record.items : [];
+  const pagination = asObject(record.pagination) ?? {};
+
+  return {
+    items: items.map((value) => {
+      const entry = asObject(value) ?? {};
+      return {
+        id: toString(entry.id) || undefined,
+        userId: toString(entry.user_id) || undefined,
+        userEmail: toString(entry.user_email) || undefined,
+        url: toString(entry.url),
+        result: entry.result === "phishing" ? "phishing" : "legit",
+        confidence: typeof entry.confidence === "number" ? entry.confidence : null,
+        created_at: toString(entry.created_at) || undefined,
+      } satisfies HistoryItem;
+    }),
+    total: typeof record.total === "number" ? record.total : 0,
+    pagination: {
+      limit: typeof pagination.limit === "number" ? pagination.limit : filters.limit,
+      offset: typeof pagination.offset === "number" ? pagination.offset : filters.offset,
+    },
+  };
 }
 
 export async function fetchAdminLogs(limit = 100) {
