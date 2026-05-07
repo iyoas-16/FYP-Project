@@ -75,7 +75,7 @@ class Settings:
     JSON_SORT_KEYS = False
     PROPAGATE_EXCEPTIONS = False
 
-    MODEL_PATH = _resolve_path(BASE_DIR, os.getenv("MODEL_PATH", "model.pkl"))
+    MODEL_PATH = _resolve_path(BASE_DIR, os.getenv("MODEL_PATH", "phishing_model.pkl"))
     VECTORIZER_PATH = _resolve_path(BASE_DIR, os.getenv("VECTORIZER_PATH", "vectorizer.pkl"))
     MODEL_VERSION = os.getenv("MODEL_VERSION", "decision-tree-v1")
 

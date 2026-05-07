@@ -13,14 +13,14 @@ class ModelServiceArtifactTestCase(unittest.TestCase):
         self.app = create_app({"TESTING": True})
         self.service = PhishingModelService(self.app.config)
 
-    def test_service_loads_real_gradient_boosting_artifact(self):
+    def test_service_loads_real_random_forest_bundle(self):
         self.service._ensure_loaded()
 
-        self.assertEqual(type(self.service._model).__name__, "GradientBoostingClassifier")
+        self.assertEqual(type(self.service._model).__name__, "RandomForestClassifier")
         self.assertIsNone(self.service._vectorizer)
-        self.assertEqual(self.service._input_mode, "feature_extraction")
+        self.assertEqual(self.service._input_mode, "url_feature_bundle")
         self.assertEqual(self.service._model.n_features_in_, 30)
-        self.assertEqual(self.service._model.classes_.tolist(), [-1, 1])
+        self.assertEqual(self.service._model.classes_.tolist(), [0, 1])
 
     def test_feature_extraction_mode_maps_negative_one_to_phishing(self):
         class _FakeFeatureModel:
@@ -151,10 +151,8 @@ class ModelServiceArtifactTestCase(unittest.TestCase):
 
         self.assertEqual(prediction.api_result, "phishing")
         self.assertEqual(prediction.storage_result, "phishing")
-        self.assertEqual(
-            prediction.heuristics["brand_impersonation_override"]["matched_brands"],
-            ["paypal"],
-        )
+        self.assertIn("paypal", prediction.heuristics["matched_brands"])
+        self.assertIn("login", prediction.heuristics["suspicious_terms"])
 
     def test_real_artifact_treats_github_auth_check_as_phishing(self):
         prepared_url = prepare_url("https://github-auth-check.com", self.app.config["BRAND_KEYWORDS"])
@@ -163,7 +161,5 @@ class ModelServiceArtifactTestCase(unittest.TestCase):
 
         self.assertEqual(prediction.api_result, "phishing")
         self.assertEqual(prediction.storage_result, "phishing")
-        self.assertIn(
-            "github",
-            prediction.heuristics["brand_impersonation_override"]["matched_brands"],
-        )
+        self.assertIn("github", prediction.heuristics["matched_brands"])
+        self.assertIn("auth", prediction.heuristics["suspicious_terms"])

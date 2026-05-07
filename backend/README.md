@@ -35,7 +35,7 @@ To run the project, you can follow these steps:
 │   ├── save_data.py
 │   ├── train_model.py
 ├── pickle
-│   ├── model.pkl
+│   ├── phishing_model.pkl
 ├── Phishing URL Detection.ipynb
 ├── README.md
 ├── app.py
@@ -51,7 +51,7 @@ To run the project, you can follow these steps:
 - `feature.py`: script for extracting features from URLs
 - `database.db`: SQLite database for storing URLs and their labels
 - `phishing.csv`: dataset containing URLs and their labels
-- `pickle/model.pkl`: serialized model object
+- `phishing_model.pkl`: serialized phishing detection model bundle
 - `joblib/gbc_model.joblib`: serialized model object using joblib
 - `db/load_data.py`: script for loading data into the database
 - `db/save_data.py`: script for saving data to the database

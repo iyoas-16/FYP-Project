@@ -8,12 +8,47 @@ import warnings
 
 import joblib
 import numpy as np
+import pandas as pd
 from joblib.numpy_pickle import NumpyUnpickler
 from sklearn.exceptions import InconsistentVersionWarning
 from sklearn.tree import _tree
 
+from ml.url_features import FEATURE_NAMES, extract_features
 from utils.errors import ConfigurationError
 from utils.url_processing import PreparedUrl
+
+LEGACY_FEATURE_NAMES = [
+    "UsingIP",
+    "LongURL",
+    "ShortURL",
+    "Symbol",
+    "Redirecting",
+    "PrefixSuffix",
+    "SubDomains",
+    "HTTPS",
+    "DomainRegLen",
+    "Favicon",
+    "NonStdPort",
+    "HTTPSDomainURL",
+    "RequestURL",
+    "AnchorURL",
+    "LinksInScriptTags",
+    "ServerFormHandler",
+    "InfoEmail",
+    "AbnormalURL",
+    "WebsiteForwarding",
+    "StatusBarCust",
+    "DisableRightClick",
+    "UsingPopupWindow",
+    "IframeRedirection",
+    "AgeofDomain",
+    "DNSRecording",
+    "WebsiteTraffic",
+    "PageRank",
+    "GoogleIndex",
+    "LinksPointingToPage",
+    "StatsReport",
+]
 
 
 class _LegacyTreePlaceholder:
@@ -60,6 +95,7 @@ class PhishingModelService:
         self._config = config
         self._load_lock = Lock()
         self._model: Any | None = None
+        self._artifact_bundle: dict[str, Any] | None = None
         self._vectorizer: Any | None = None
         self._input_mode: str | None = None
 
@@ -161,7 +197,13 @@ class PhishingModelService:
             if self._model is not None:
                 return
             try:
-                self._model = self._load_model(self._config["MODEL_PATH"])
+                loaded_model = self._load_model(self._config["MODEL_PATH"])
+                if isinstance(loaded_model, dict) and loaded_model.get("artifact_type") == "phishing_model_bundle":
+                    self._artifact_bundle = loaded_model
+                    self._model = loaded_model.get("model")
+                else:
+                    self._artifact_bundle = None
+                    self._model = loaded_model
                 self._vectorizer = self._load_vectorizer(self._config["VECTORIZER_PATH"])
                 self._input_mode = self._determine_input_mode()
             except FileNotFoundError as exc:
@@ -172,6 +214,8 @@ class PhishingModelService:
     def _transform(self, prepared_url: PreparedUrl):
         if self._input_mode == "vectorizer":
             return self._transform_text_inputs([prepared_url.combined_text])
+        if self._input_mode == "url_feature_bundle":
+            return self._transform_bundle_features(prepared_url)
         if self._input_mode == "feature_extraction":
             return self._extract_url_features(prepared_url)
         raise ConfigurationError("Model input mode is not configured")
@@ -219,6 +263,8 @@ class PhishingModelService:
             return self._load_legacy_model(model_path)
 
     def _load_vectorizer(self, vectorizer_path: str):
+        if self._artifact_bundle is not None:
+            return None
         path = Path(vectorizer_path)
         if not path.exists():
             return None
@@ -229,11 +275,30 @@ class PhishingModelService:
         return None
 
     def _determine_input_mode(self) -> str:
+        if self._artifact_bundle is not None:
+            return "url_feature_bundle"
         if self._vectorizer is not None:
             return "vectorizer"
         if getattr(self._model, "n_features_in_", None) == self._FEATURE_EXTRACTION_FEATURE_COUNT:
             return "feature_extraction"
         raise ConfigurationError("Model artifacts are incompatible with the configured input pipeline")
+
+    def _transform_bundle_features(self, prepared_url: PreparedUrl):
+        if self._artifact_bundle is None:
+            raise ConfigurationError("Bundle-backed model is not configured correctly")
+        feature_names = self._artifact_bundle.get("feature_names") or FEATURE_NAMES
+        feature_mode = self._artifact_bundle.get("feature_mode", "url_features_v1")
+        if feature_mode == "legacy_feature_extraction":
+            legacy_values = self._extract_url_features(prepared_url).reshape(-1)
+            feature_values = {
+                name: float(legacy_values[index]) for index, name in enumerate(LEGACY_FEATURE_NAMES)
+            }
+        else:
+            feature_values = extract_features(prepared_url.normalized_url)
+        return pd.DataFrame(
+            [{name: float(feature_values.get(name, 0.0)) for name in feature_names}],
+            columns=feature_names,
+        )
 
     def _load_legacy_model(self, model_path: str):
         try:
