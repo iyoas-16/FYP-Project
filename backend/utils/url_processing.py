@@ -11,6 +11,21 @@ from utils.errors import ValidationError
 _CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f]+")
 _SCHEME_PREFIX = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://")
 _HOST_LABEL = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", re.IGNORECASE)
+_SUSPICIOUS_TERMS = {
+    "account",
+    "alert",
+    "auth",
+    "billing",
+    "confirm",
+    "login",
+    "password",
+    "secure",
+    "signin",
+    "support",
+    "unlock",
+    "update",
+    "verify",
+}
 
 
 @dataclass(frozen=True)
@@ -82,6 +97,26 @@ def _infer_target(normalized_url: str, hostname: str, brand_keywords: dict[str, 
     return "Other"
 
 
+def _match_brand_keywords(hostname: str, brand_keywords: dict[str, str]) -> list[str]:
+    compact_hostname = re.sub(r"[^a-z0-9]+", "", hostname.lower())
+    matches: list[str] = []
+    for keyword in brand_keywords:
+        normalized_keyword = re.sub(r"[^a-z0-9]+", "", keyword.lower())
+        if keyword.lower() in hostname.lower() or normalized_keyword in compact_hostname:
+            if keyword not in matches:
+                matches.append(keyword)
+    return matches
+
+
+def _find_suspicious_terms(*values: str) -> list[str]:
+    terms: list[str] = []
+    for value in values:
+        for token in re.findall(r"[a-z0-9]+", value.lower()):
+            if token in _SUSPICIOUS_TERMS and token not in terms:
+                terms.append(token)
+    return terms
+
+
 def prepare_url(raw_url: str | None, brand_keywords: dict[str, str]) -> PreparedUrl:
     if not raw_url or not isinstance(raw_url, str):
         raise ValidationError("url is required")
@@ -119,11 +154,16 @@ def prepare_url(raw_url: str | None, brand_keywords: dict[str, str]) -> Prepared
         )
     )
     inferred_target = _infer_target(normalized_url, hostname, brand_keywords)
+    matched_brands = _match_brand_keywords(hostname, brand_keywords)
+    suspicious_terms = _find_suspicious_terms(hostname, parsed.path, parsed.query)
     heuristics = {
         "uses_https": parsed.scheme.lower() == "https",
         "contains_ip_address": bool(re.fullmatch(r"\d{1,3}(?:\.\d{1,3}){3}", hostname)),
         "subdomain_depth": max(0, len(hostname.split(".")) - 2),
         "path_depth": len([segment for segment in parsed.path.split("/") if segment]),
+        "has_hyphenated_hostname": "-" in hostname,
+        "matched_brands": matched_brands,
+        "suspicious_terms": suspicious_terms,
     }
     return PreparedUrl(
         original_url=cleaned_input,

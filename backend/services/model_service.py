@@ -76,14 +76,82 @@ class PhishingModelService:
         else:
             confidence = round(1 - phishing_probability, 4)
         is_phishing = prediction == phishing_label
-        return ModelPrediction(
-            storage_result="phishing" if is_phishing else "legitimate",
-            api_result="phishing" if is_phishing else "legit",
-            confidence=confidence,
-            model_name=type(self._model).__name__,
-            model_version=self._config["MODEL_VERSION"],
-            heuristics=prepared_url.heuristics,
+        result = self._apply_trusted_domain_override(
+            ModelPrediction(
+                storage_result="phishing" if is_phishing else "legitimate",
+                api_result="phishing" if is_phishing else "legit",
+                confidence=confidence,
+                model_name=type(self._model).__name__,
+                model_version=self._config["MODEL_VERSION"],
+                heuristics=self._build_prediction_heuristics(prepared_url),
+            ),
+            getattr(prepared_url, "hostname", ""),
         )
+        return self._apply_brand_impersonation_override(result)
+
+    def _apply_trusted_domain_override(
+        self,
+        prediction: ModelPrediction,
+        hostname: str,
+    ) -> ModelPrediction:
+        trusted_domain = self._match_trusted_domain(hostname)
+        if not trusted_domain:
+            return prediction
+
+        if prediction.api_result != "phishing":
+            return prediction
+
+        updated_heuristics = dict(prediction.heuristics)
+        updated_heuristics["trusted_domain_override"] = trusted_domain
+        return ModelPrediction(
+            storage_result="legitimate",
+            api_result="legit",
+            confidence=0.99,
+            model_name=prediction.model_name,
+            model_version=prediction.model_version,
+            heuristics=updated_heuristics,
+        )
+
+    def _build_prediction_heuristics(self, prepared_url: PreparedUrl) -> dict:
+        hostname = getattr(prepared_url, "hostname", "")
+        trusted_domain = self._match_trusted_domain(hostname) if hostname else None
+        return {
+            **prepared_url.heuristics,
+            "trusted_domain": trusted_domain,
+        }
+
+    def _apply_brand_impersonation_override(self, prediction: ModelPrediction) -> ModelPrediction:
+        if prediction.api_result != "legit":
+            return prediction
+
+        if prediction.heuristics.get("trusted_domain"):
+            return prediction
+
+        matched_brands = prediction.heuristics.get("matched_brands") or []
+        suspicious_terms = prediction.heuristics.get("suspicious_terms") or []
+        if not matched_brands or not suspicious_terms:
+            return prediction
+
+        updated_heuristics = dict(prediction.heuristics)
+        updated_heuristics["brand_impersonation_override"] = {
+            "matched_brands": matched_brands,
+            "suspicious_terms": suspicious_terms,
+        }
+        return ModelPrediction(
+            storage_result="phishing",
+            api_result="phishing",
+            confidence=max(prediction.confidence, 0.97),
+            model_name=prediction.model_name,
+            model_version=prediction.model_version,
+            heuristics=updated_heuristics,
+        )
+
+    def _match_trusted_domain(self, hostname: str) -> str | None:
+        trusted_domains = sorted(self._config.get("TRUSTED_DOMAINS", []), key=len, reverse=True)
+        for trusted_domain in trusted_domains:
+            if hostname == trusted_domain or hostname.endswith(f".{trusted_domain}"):
+                return trusted_domain
+        return None
 
     def _ensure_loaded(self) -> None:
         if self._model is not None:

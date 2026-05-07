@@ -4,6 +4,7 @@ import { Shield } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { getProfileRole } from "@/lib/profile-role";
 import { getDefaultAuthenticatedPath, getSafeRedirectTarget } from "@/lib/auth-navigation";
 import { getLoginErrorMessage } from "@/lib/auth-errors";
 import { Button } from "@/components/ui/button";
@@ -54,8 +55,10 @@ export function LoginPage() {
       return;
     }
 
+    const isUserAdmin = data.user ? (await getProfileRole(data.user.id)) === "admin" : false;
+
     toast.success("Welcome back");
-    window.location.assign(getSafeRedirectTarget("/dashboard"));
+    window.location.assign(getSafeRedirectTarget(getDefaultAuthenticatedPath(isUserAdmin)));
   }
 
   return (

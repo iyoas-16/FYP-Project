@@ -39,20 +39,57 @@ export type HistoryFilters = {
   sort: HistorySort;
 };
 
-export type AdminLog = {
-  id?: string;
-  user_id?: string;
-  user_email?: string | null;
-  input: string;
-  prediction: Prediction;
-  created_at?: string;
-};
+export type AdminRange = "7d" | "30d" | "90d";
 
 export type AdminUser = {
   id?: string;
   email?: string | null;
-  role: "user" | "admin";
-  created_at?: string;
+  phone?: string | null;
+  role: "admin" | "standard";
+  signupTimestamp?: string;
+  lastSignInTimestamp?: string;
+  emailConfirmedTimestamp?: string;
+  providers: string[];
+};
+
+export type AdminDirectoryResponse = {
+  users: AdminUser[];
+  summary: {
+    totalUsers: number;
+    adminUsers: number;
+    standardUsers: number;
+    mostRecentSignIn?: string;
+  };
+};
+
+export type AdminOverview = {
+  totalScans: number;
+  phishingCount: number;
+  legitCount: number;
+  uniqueUsers: number;
+  avgConfidence: number;
+};
+
+export type AdminActivityItem = {
+  date: string;
+  total: number;
+  phishing: number;
+  legit: number;
+};
+
+export type AdminRiskyUrl = {
+  url: string;
+  count: number;
+  result: "phishing";
+  lastSeen?: string;
+};
+
+export type AdminStatsResponse = AdminDirectoryResponse & {
+  range: AdminRange;
+  overview: AdminOverview;
+  activity: AdminActivityItem[];
+  topRiskyUrls: AdminRiskyUrl[];
+  recentScans: HistoryItem[];
 };
 
 type RequestOptions = {
@@ -98,8 +135,61 @@ function toString(value: unknown, fallback = "") {
   return typeof value === "string" ? value : fallback;
 }
 
+function toStringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string")
+    : [];
+}
+
 function toPrediction(value: unknown): Prediction {
   return value === "phishing" ? "phishing" : "safe";
+}
+
+function normalizeHistoryItem(value: unknown): HistoryItem {
+  const entry = asObject(value) ?? {};
+  return {
+    id: toString(entry.id) || undefined,
+    userId: toString(entry.user_id) || undefined,
+    userEmail: toString(entry.user_email || entry.email) || undefined,
+    url: toString(entry.url),
+    result: entry.result === "phishing" ? "phishing" : "legit",
+    confidence:
+      typeof entry.confidence === "number"
+        ? entry.confidence
+        : typeof entry.confidence_score === "number"
+          ? entry.confidence_score
+          : null,
+    created_at: toString(entry.created_at) || undefined,
+  } satisfies HistoryItem;
+}
+
+function normalizeAdminUser(value: unknown): AdminUser {
+  const entry = asObject(value) ?? {};
+  return {
+    id: toString(entry.id) || undefined,
+    email: toString(entry.email) || undefined,
+    phone: toString(entry.phone) || undefined,
+    role: entry.is_admin === true ? "admin" : "standard",
+    signupTimestamp: toString(entry.signup_timestamp) || undefined,
+    lastSignInTimestamp: toString(entry.last_sign_in_timestamp) || undefined,
+    emailConfirmedTimestamp: toString(entry.email_confirmed_timestamp) || undefined,
+    providers: toStringArray(entry.providers),
+  } satisfies AdminUser;
+}
+
+function summarizeAdminUsers(users: AdminUser[]) {
+  const adminUsers = users.filter((user) => user.role === "admin").length;
+  const mostRecentSignIn = users
+    .map((user) => user.lastSignInTimestamp)
+    .filter((value): value is string => Boolean(value))
+    .sort((left, right) => right.localeCompare(left))[0];
+
+  return {
+    totalUsers: users.length,
+    adminUsers,
+    standardUsers: users.length - adminUsers,
+    mostRecentSignIn,
+  };
 }
 
 async function getAccessToken() {
@@ -194,18 +284,7 @@ export async function fetchHistory(filters: HistoryFilters): Promise<HistoryResp
   const pagination = asObject(record.pagination) ?? {};
 
   return {
-    items: items.map((value) => {
-      const entry = asObject(value) ?? {};
-      return {
-        id: toString(entry.id) || undefined,
-        userId: toString(entry.user_id) || undefined,
-        userEmail: toString(entry.user_email) || undefined,
-        url: toString(entry.url),
-        result: entry.result === "phishing" ? "phishing" : "legit",
-        confidence: typeof entry.confidence === "number" ? entry.confidence : null,
-        created_at: toString(entry.created_at) || undefined,
-      } satisfies HistoryItem;
-    }),
+    items: items.map(normalizeHistoryItem),
     total: typeof record.total === "number" ? record.total : 0,
     pagination: {
       limit: typeof pagination.limit === "number" ? pagination.limit : filters.limit,
@@ -214,40 +293,51 @@ export async function fetchHistory(filters: HistoryFilters): Promise<HistoryResp
   };
 }
 
-export async function fetchAdminLogs(limit = 100) {
-  const payload = await request<unknown>("/admin/logs", {
-    query: { limit },
+export async function fetchAdminStats(range: AdminRange = "30d"): Promise<AdminStatsResponse> {
+  const payload = await request<unknown>("/admin/stats", {
+    query: {
+      range,
+      include_auth_history: "true",
+    },
   });
   const record = asObject(payload) ?? {};
-  const logs = Array.isArray(record.logs) ? record.logs : [];
+  const overview = asObject(record.overview) ?? {};
+  const users = Array.isArray(record.auth_history)
+    ? record.auth_history.map(normalizeAdminUser)
+    : [];
+  const activity = Array.isArray(record.activity) ? record.activity : [];
+  const topRiskyUrls = Array.isArray(record.top_risky_urls) ? record.top_risky_urls : [];
+  const recentScans = Array.isArray(record.recent_scans) ? record.recent_scans : [];
 
-  return logs.map((value) => {
-    const entry = asObject(value) ?? {};
-    return {
-      id: toString(entry.id) || undefined,
-      user_id: toString(entry.user_id) || undefined,
-      user_email: toString(entry.user_email) || undefined,
-      input: toString(entry.input),
-      prediction: toPrediction(entry.prediction),
-      created_at: toString(entry.created_at) || undefined,
-    } satisfies AdminLog;
-  });
-}
-
-export async function fetchAdminUsers(limit = 100) {
-  const payload = await request<unknown>("/admin/users", {
-    query: { limit },
-  });
-  const record = asObject(payload) ?? {};
-  const users = Array.isArray(record.users) ? record.users : [];
-
-  return users.map((value) => {
-    const entry = asObject(value) ?? {};
-    return {
-      id: toString(entry.id) || undefined,
-      email: toString(entry.email) || undefined,
-      role: entry.role === "admin" ? "admin" : "user",
-      created_at: toString(entry.created_at) || undefined,
-    } satisfies AdminUser;
-  });
+  return {
+    range,
+    users,
+    summary: summarizeAdminUsers(users),
+    overview: {
+      totalScans: typeof overview.total_scans === "number" ? overview.total_scans : 0,
+      phishingCount: typeof overview.phishing_count === "number" ? overview.phishing_count : 0,
+      legitCount: typeof overview.legit_count === "number" ? overview.legit_count : 0,
+      uniqueUsers: typeof overview.unique_users === "number" ? overview.unique_users : 0,
+      avgConfidence: typeof overview.avg_confidence === "number" ? overview.avg_confidence : 0,
+    },
+    activity: activity.map((value) => {
+      const entry = asObject(value) ?? {};
+      return {
+        date: toString(entry.date),
+        total: typeof entry.total === "number" ? entry.total : 0,
+        phishing: typeof entry.phishing === "number" ? entry.phishing : 0,
+        legit: typeof entry.legit === "number" ? entry.legit : 0,
+      } satisfies AdminActivityItem;
+    }),
+    topRiskyUrls: topRiskyUrls.map((value) => {
+      const entry = asObject(value) ?? {};
+      return {
+        url: toString(entry.url),
+        count: typeof entry.count === "number" ? entry.count : 0,
+        result: "phishing",
+        lastSeen: toString(entry.last_seen) || undefined,
+      } satisfies AdminRiskyUrl;
+    }),
+    recentScans: recentScans.map(normalizeHistoryItem),
+  };
 }

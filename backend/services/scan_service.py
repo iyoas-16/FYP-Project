@@ -360,10 +360,20 @@ class ScanService:
         for entry in app_metadata.get("roles", []) or []:
             roles.add(str(entry).lower())
 
+        providers = []
+        raw_providers = app_metadata.get("providers")
+        if isinstance(raw_providers, list):
+            providers = [str(provider) for provider in raw_providers if provider]
+        elif app_metadata.get("provider"):
+            providers = [str(app_metadata["provider"])]
+
         return {
             "id": user.get("id"),
             "email": user.get("email"),
+            "phone": user.get("phone"),
             "signup_timestamp": user.get("created_at"),
             "last_sign_in_timestamp": user.get("last_sign_in_at"),
+            "email_confirmed_timestamp": user.get("email_confirmed_at"),
+            "providers": providers,
             "is_admin": "admin" in roles or "service_role" in roles,
         }

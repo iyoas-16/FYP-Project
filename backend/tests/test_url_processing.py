@@ -25,6 +25,9 @@ class UrlProcessingTestCase(unittest.TestCase):
 
         self.assertEqual(prepared.hostname, "secure-paypal-login.com")
         self.assertEqual(prepared.normalized_url, "https://secure-paypal-login.com/")
+        self.assertEqual(prepared.heuristics["matched_brands"], ["paypal"])
+        self.assertIn("secure", prepared.heuristics["suspicious_terms"])
+        self.assertIn("login", prepared.heuristics["suspicious_terms"])
 
     def test_accepts_ip_address_hostname(self):
         prepared = prepare_url("http://192.168.1.1/verify", self.brand_keywords)

@@ -3,11 +3,15 @@ import { getProfileRole } from "@/lib/profile-role";
 
 const { maybeSingle, eq, select, from } = vi.hoisted(() => {
   const maybeSingle = vi.fn();
-  const eq = vi.fn(() => ({ maybeSingle }));
+  const query = {
+    eq: vi.fn(),
+    maybeSingle,
+  };
+  query.eq.mockReturnValue(query);
   const select = vi.fn(() => ({ eq }));
   const from = vi.fn(() => ({ select }));
 
-  return { maybeSingle, eq, select, from };
+  return { maybeSingle, eq: query.eq, select, from };
 });
 
 vi.mock("@/integrations/supabase/client", () => ({
@@ -28,8 +32,9 @@ describe("profile-role", () => {
     maybeSingle.mockResolvedValue({ data: { role: "admin" }, error: null });
 
     await expect(getProfileRole("user-123")).resolves.toBe("admin");
-    expect(from).toHaveBeenCalledWith("profiles");
-    expect(eq).toHaveBeenCalledWith("id", "user-123");
+    expect(from).toHaveBeenCalledWith("user_roles");
+    expect(eq).toHaveBeenNthCalledWith(1, "user_id", "user-123");
+    expect(eq).toHaveBeenNthCalledWith(2, "role", "admin");
   });
 
   it("defaults to user when the profile is missing", async () => {

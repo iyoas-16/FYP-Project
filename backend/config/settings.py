@@ -39,6 +39,29 @@ def _cors_origins(value: str | None) -> list[str]:
     return origins
 
 
+def _trusted_domains(value: str | None) -> list[str]:
+    defaults = [
+        "amazon.com",
+        "apple.com",
+        "chatgpt.com",
+        "facebook.com",
+        "github.com",
+        "google.com",
+        "microsoft.com",
+        "openai.com",
+        "paypal.com",
+        "stripe.com",
+        "wikipedia.org",
+        "youtube.com",
+    ]
+    domains: list[str] = []
+    for domain in [*_as_list(value), *defaults]:
+        normalized = domain.strip().strip(".").lower()
+        if normalized and normalized not in domains:
+            domains.append(normalized)
+    return domains
+
+
 def _resolve_path(base_dir: Path, value: str) -> str:
     path = Path(value)
     return str(path if path.is_absolute() else base_dir / path)
@@ -73,15 +96,22 @@ class Settings:
 
     ADMIN_ROLES = _as_list(os.getenv("ADMIN_ROLES", "admin,service_role"))
     ADMIN_EMAILS = _as_list(os.getenv("ADMIN_EMAILS"))
+    TRUSTED_DOMAINS = _trusted_domains(os.getenv("TRUSTED_DOMAINS"))
 
     BRAND_KEYWORDS = {
         "facebook": "Facebook",
         "paypal": "PayPal",
         "microsoft": "Microsoft",
         "google": "Google",
+        "github": "GitHub",
+        "chatgpt": "ChatGPT",
+        "openai": "OpenAI",
         "apple": "Apple",
         "steam": "Steam",
         "amazon": "Amazon",
+        "youtube": "YouTube",
+        "wikipedia": "Wikipedia",
+        "stripe": "Stripe",
         "mastercard": "Mastercard",
         "americanexpress": "American Express",
         "amex": "American Express",

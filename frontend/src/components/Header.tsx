@@ -9,7 +9,8 @@ export function Header() {
   const { user, isAdmin, signOut } = useAuth();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const brandDestination = user ? getDefaultAuthenticatedPath(isAdmin) : "/";
-
+  const hideUserNavOnAdminPage = isAdmin && pathname === "/admin";
+  
   return (
     <header className="border-b border-border/60 bg-card/60">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-6 py-4">
@@ -23,28 +24,32 @@ export function Header() {
         <nav className="flex items-center gap-2">
           {user ? (
             <>
-              <Link
-                to="/dashboard"
-                className={cn(
-                  buttonVariants({
-                    variant: pathname === "/dashboard" ? "secondary" : "ghost",
-                    size: "sm",
-                  }),
-                )}
-              >
-                Dashboard
-              </Link>
-              <Link
-                to="/history"
-                className={cn(
-                  buttonVariants({
-                    variant: pathname === "/history" ? "secondary" : "ghost",
-                    size: "sm",
-                  }),
-                )}
-              >
-                History
-              </Link>
+              {!hideUserNavOnAdminPage ? (
+                <>
+                  <Link
+                    to="/dashboard"
+                    className={cn(
+                      buttonVariants({
+                        variant: pathname === "/dashboard" ? "secondary" : "ghost",
+                        size: "sm",
+                      }),
+                    )}
+                  >
+                    Dashboard
+                  </Link>
+                  <Link
+                    to="/history"
+                    className={cn(
+                      buttonVariants({
+                        variant: pathname === "/history" ? "secondary" : "ghost",
+                        size: "sm",
+                      }),
+                    )}
+                  >
+                    History
+                  </Link>
+                </>
+              ) : null}
               {isAdmin ? (
                 <Link
                   to="/admin"
