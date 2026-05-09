@@ -3,23 +3,14 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Shield } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-<<<<<<< HEAD
-=======
 import { useAuth } from "@/hooks/use-auth";
 import { getDefaultAuthenticatedPath, getSafeRedirectTarget } from "@/lib/auth-navigation";
 import { getSignupErrorMessage } from "@/lib/auth-errors";
 import { getSignupValidationError } from "@/lib/signup-validation";
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-<<<<<<< HEAD
-import { useAuth } from "@/hooks/use-auth";
-import { getDefaultAuthenticatedPath, getSafeRedirectTarget } from "@/lib/auth-navigation";
-import { ApiError, signUpUser } from "@/services/api";
-=======
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
 
 export function SignupPage() {
   const { user, isAdmin, loading: authLoading } = useAuth();
@@ -27,11 +18,8 @@ export function SignupPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
-<<<<<<< HEAD
-=======
   const [error, setError] = useState<string | null>(null);
   const [confirmPasswordError, setConfirmPasswordError] = useState<string | null>(null);
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
 
   useEffect(() => {
     if (!authLoading && user && typeof window !== "undefined") {
@@ -42,19 +30,6 @@ export function SignupPage() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     const normalizedEmail = email.trim().toLowerCase();
-<<<<<<< HEAD
-
-    if (!normalizedEmail) {
-      toast.error("Email is required");
-      return;
-    }
-    if (password.length < 6) {
-      toast.error("Password must be at least 6 characters");
-      return;
-    }
-    if (password !== confirmPassword) {
-      toast.error("Passwords do not match");
-=======
     const validationError = getSignupValidationError(normalizedEmail, password, confirmPassword);
 
     setError(null);
@@ -66,38 +41,10 @@ export function SignupPage() {
       } else {
         setError(validationError.message);
       }
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
       return;
     }
 
     setLoading(true);
-<<<<<<< HEAD
-    try {
-      await signUpUser(normalizedEmail, password);
-      const { error } = await supabase.auth.signInWithPassword({
-        email: normalizedEmail,
-        password,
-      });
-
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
-
-      toast.success("Account created! Redirecting...");
-      window.location.assign(getSafeRedirectTarget("/dashboard"));
-    } catch (error) {
-      if (error instanceof ApiError) {
-        toast.error(error.message);
-        return;
-      }
-
-      toast.error("Unable to create account right now");
-      return;
-    } finally {
-      setLoading(false);
-    }
-=======
 
     const { data, error } = await supabase.auth.signUp({
       email: normalizedEmail,
@@ -116,7 +63,6 @@ export function SignupPage() {
     }
     toast.success("Account created. Please log in to continue.");
     window.location.assign("/login");
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
   }
 
   return (
@@ -141,14 +87,10 @@ export function SignupPage() {
               autoComplete="email"
               required
               value={email}
-<<<<<<< HEAD
-              onChange={(e) => setEmail(e.target.value)}
-=======
               onChange={(e) => {
                 setEmail(e.target.value);
                 setError(null);
               }}
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
               className="mt-1.5"
             />
           </div>
@@ -161,15 +103,11 @@ export function SignupPage() {
               required
               minLength={6}
               value={password}
-<<<<<<< HEAD
-              onChange={(e) => setPassword(e.target.value)}
-=======
               onChange={(e) => {
                 setPassword(e.target.value);
                 setError(null);
                 setConfirmPasswordError(null);
               }}
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
               className="mt-1.5"
             />
             <p className="mt-1 text-xs text-muted-foreground">At least 6 characters.</p>
@@ -183,12 +121,6 @@ export function SignupPage() {
               required
               minLength={6}
               value={confirmPassword}
-<<<<<<< HEAD
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="mt-1.5"
-            />
-          </div>
-=======
               onChange={(e) => {
                 setConfirmPassword(e.target.value);
                 setConfirmPasswordError(null);
@@ -201,7 +133,6 @@ export function SignupPage() {
             ) : null}
           </div>
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
           <Button type="submit" disabled={loading} className="w-full shadow-glow">
             {loading ? "Creating..." : "Create account"}
           </Button>

@@ -90,8 +90,6 @@ def scan_url():
     return jsonify(result), 201
 
 
-<<<<<<< HEAD
-=======
 @api_blueprint.post("/predict")
 def predict_url():
     user = get_jwt_verifier().require_user()
@@ -112,7 +110,6 @@ def predict_url():
     )
 
 
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
 @api_blueprint.get("/history")
 def history():
     user = get_jwt_verifier().require_user()

@@ -1,19 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-<<<<<<< HEAD
-from threading import Lock
-from typing import Any
-
-import joblib
-import numpy as np
-from joblib.numpy_pickle import NumpyUnpickler
-from sklearn.tree import _tree
-
-from utils.errors import ConfigurationError
-from utils.url_processing import PreparedUrl
-
-=======
 from pathlib import Path
 from threading import Lock
 from typing import Any
@@ -63,7 +50,6 @@ LEGACY_FEATURE_NAMES = [
     "StatsReport",
 ]
 
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
 
 class _LegacyTreePlaceholder:
     def __init__(self, *args) -> None:
@@ -74,8 +60,6 @@ class _LegacyTreePlaceholder:
         self.state = state
 
 
-<<<<<<< HEAD
-=======
 class _LegacyLossPlaceholder:
     def __init__(self, *args) -> None:
         self.args = args
@@ -85,16 +69,12 @@ class _LegacyLossPlaceholder:
         self.state = state
 
 
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
 class _LegacyTreeUnpickler(NumpyUnpickler):
     def find_class(self, module, name):
         if module == "sklearn.tree._tree" and name == "Tree":
             return _LegacyTreePlaceholder
-<<<<<<< HEAD
-=======
         if module == "sklearn.ensemble._gb_losses":
             return _LegacyLossPlaceholder
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
         return super().find_class(module, name)
 
 
@@ -109,39 +89,12 @@ class ModelPrediction:
 
 
 class PhishingModelService:
-<<<<<<< HEAD
-=======
     _FEATURE_EXTRACTION_FEATURE_COUNT = 30
 
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
     def __init__(self, config) -> None:
         self._config = config
         self._load_lock = Lock()
         self._model: Any | None = None
-<<<<<<< HEAD
-        self._vectorizer: Any | None = None
-
-    def predict(self, prepared_url: PreparedUrl) -> ModelPrediction:
-        self._ensure_loaded()
-        features = self._transform([prepared_url.combined_text])
-        prediction = int(self._model.predict(features)[0])
-        phishing_probability = self._extract_probability(features)
-        confidence = (
-            round(phishing_probability if prediction == 1 else 1 - phishing_probability, 4)
-            if phishing_probability is not None
-            else 0.5
-        )
-        is_phishing = prediction == 1
-        return ModelPrediction(
-            storage_result="phishing" if is_phishing else "legitimate",
-            api_result="phishing" if is_phishing else "legit",
-            confidence=confidence,
-            model_name=type(self._model).__name__,
-            model_version=self._config["MODEL_VERSION"],
-            heuristics=prepared_url.heuristics,
-        )
-
-=======
         self._artifact_bundle: dict[str, Any] | None = None
         self._vectorizer: Any | None = None
         self._input_mode: str | None = None
@@ -236,7 +189,6 @@ class PhishingModelService:
                 return trusted_domain
         return None
 
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
     def _ensure_loaded(self) -> None:
         if self._model is not None:
             return
@@ -245,26 +197,6 @@ class PhishingModelService:
             if self._model is not None:
                 return
             try:
-<<<<<<< HEAD
-                self._model = joblib.load(self._config["MODEL_PATH"])
-                self._vectorizer = joblib.load(self._config["VECTORIZER_PATH"])
-            except FileNotFoundError as exc:
-                raise ConfigurationError("Model artifacts are missing from the configured paths") from exc
-            except ValueError as exc:
-                if "node array from the pickle has an incompatible dtype" not in str(exc):
-                    raise ConfigurationError(f"Unable to load model artifacts: {exc}") from exc
-                self._model = self._load_legacy_decision_tree(self._config["MODEL_PATH"])
-                self._vectorizer = joblib.load(self._config["VECTORIZER_PATH"])
-            except Exception as exc:
-                raise ConfigurationError(f"Unable to load model artifacts: {exc}") from exc
-
-    def _transform(self, text_inputs: list[str]):
-        if self._vectorizer is None:
-            return text_inputs
-        transformed = self._vectorizer.transform(text_inputs)
-        return transformed.toarray() if hasattr(transformed, "toarray") else transformed
-
-=======
                 loaded_model = self._load_model(self._config["MODEL_PATH"])
                 if isinstance(loaded_model, dict) and loaded_model.get("artifact_type") == "phishing_model_bundle":
                     self._artifact_bundle = loaded_model
@@ -308,7 +240,6 @@ class PhishingModelService:
             )
         return feature_values.reshape(1, -1)
 
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
     def _extract_probability(self, features) -> float | None:
         if not hasattr(self._model, "predict_proba"):
             return None
@@ -317,42 +248,6 @@ class PhishingModelService:
         if probability_sum > 0:
             probabilities = probabilities / probability_sum
         classes = np.asarray(getattr(self._model, "classes_", []))
-<<<<<<< HEAD
-        if 1 in classes:
-            phishing_index = int(np.where(classes == 1)[0][0])
-            return float(probabilities[phishing_index])
-        return float(max(probabilities))
-
-    def _load_legacy_decision_tree(self, model_path: str):
-        try:
-            with open(model_path, "rb") as handle:
-                model = _LegacyTreeUnpickler(
-                    model_path,
-                    handle,
-                    ensure_native_byte_order=False,
-                ).load()
-            placeholder = getattr(model, "tree_", None)
-            if not isinstance(placeholder, _LegacyTreePlaceholder) or placeholder.state is None:
-                raise ConfigurationError("Legacy model tree state could not be recovered")
-
-            tree_state = dict(placeholder.state)
-            nodes = tree_state["nodes"]
-            if "missing_go_to_left" not in nodes.dtype.names:
-                tree_state["nodes"] = self._upgrade_legacy_nodes(nodes)
-
-            restored_tree = _tree.Tree(
-                model.n_features_in_,
-                np.array([len(model.classes_)], dtype=np.intp),
-                model.n_outputs_,
-            )
-            restored_tree.__setstate__(tree_state)
-            model.tree_ = restored_tree
-            if not hasattr(model, "monotonic_cst"):
-                model.monotonic_cst = None
-            return model
-        except Exception as exc:
-            raise ConfigurationError(f"Unable to rebuild legacy decision tree artifact: {exc}") from exc
-=======
         phishing_label = self._resolve_phishing_label()
         if phishing_label in classes:
             phishing_index = int(np.where(classes == phishing_label)[0][0])
@@ -514,7 +409,6 @@ class PhishingModelService:
                 return np.array([int(n_classes)], dtype=np.intp)
             return np.asarray(n_classes, dtype=np.intp)
         return np.ones(getattr(estimator, "n_outputs_", 1), dtype=np.intp)
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
 
     @staticmethod
     def _upgrade_legacy_nodes(nodes):

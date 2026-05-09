@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-<<<<<<< HEAD
-=======
 import ipaddress
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
 import posixpath
 import re
 from dataclasses import dataclass
@@ -13,8 +10,6 @@ from utils.errors import ValidationError
 
 _CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f]+")
 _SCHEME_PREFIX = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.-]*://")
-<<<<<<< HEAD
-=======
 _HOST_LABEL = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", re.IGNORECASE)
 _SUSPICIOUS_TERMS = {
     "account",
@@ -31,7 +26,6 @@ _SUSPICIOUS_TERMS = {
     "update",
     "verify",
 }
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
 
 
 @dataclass(frozen=True)
@@ -49,12 +43,6 @@ def _normalize_hostname(hostname: str) -> str:
     if not sanitized:
         raise ValidationError("URL hostname is required")
     try:
-<<<<<<< HEAD
-        return sanitized.encode("idna").decode("ascii")
-    except UnicodeError as exc:
-        raise ValidationError("URL hostname is invalid") from exc
-
-=======
         normalized = sanitized.encode("idna").decode("ascii")
     except UnicodeError as exc:
         raise ValidationError("URL hostname is invalid") from exc
@@ -79,7 +67,6 @@ def _normalize_hostname(hostname: str) -> str:
 
     return normalized
 
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
 
 def _normalize_path(path: str) -> str:
     unquoted = unquote(path or "/")
@@ -110,8 +97,6 @@ def _infer_target(normalized_url: str, hostname: str, brand_keywords: dict[str, 
     return "Other"
 
 
-<<<<<<< HEAD
-=======
 def _match_brand_keywords(hostname: str, brand_keywords: dict[str, str]) -> list[str]:
     compact_hostname = re.sub(r"[^a-z0-9]+", "", hostname.lower())
     matches: list[str] = []
@@ -132,7 +117,6 @@ def _find_suspicious_terms(*values: str) -> list[str]:
     return terms
 
 
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
 def prepare_url(raw_url: str | None, brand_keywords: dict[str, str]) -> PreparedUrl:
     if not raw_url or not isinstance(raw_url, str):
         raise ValidationError("url is required")
@@ -173,22 +157,16 @@ def prepare_url(raw_url: str | None, brand_keywords: dict[str, str]) -> Prepared
         )
     )
     inferred_target = _infer_target(normalized_url, hostname, brand_keywords)
-<<<<<<< HEAD
-=======
     matched_brands = _match_brand_keywords(hostname, brand_keywords)
     suspicious_terms = _find_suspicious_terms(hostname, parsed.path, parsed.query)
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
     heuristics = {
         "uses_https": parsed.scheme.lower() == "https",
         "contains_ip_address": bool(re.fullmatch(r"\d{1,3}(?:\.\d{1,3}){3}", hostname)),
         "subdomain_depth": max(0, len(hostname.split(".")) - 2),
         "path_depth": len([segment for segment in parsed.path.split("/") if segment]),
-<<<<<<< HEAD
-=======
         "has_hyphenated_hostname": "-" in hostname,
         "matched_brands": matched_brands,
         "suspicious_terms": suspicious_terms,
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
     }
     return PreparedUrl(
         original_url=cleaned_input,

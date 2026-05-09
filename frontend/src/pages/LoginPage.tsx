@@ -3,32 +3,21 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Shield } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-<<<<<<< HEAD
-=======
 import { useAuth } from "@/hooks/use-auth";
 import { getProfileRole } from "@/lib/profile-role";
 import { getDefaultAuthenticatedPath, getSafeRedirectTarget } from "@/lib/auth-navigation";
 import { getLoginErrorMessage } from "@/lib/auth-errors";
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-<<<<<<< HEAD
-import { useAuth } from "@/hooks/use-auth";
-import { getDefaultAuthenticatedPath, getSafeRedirectTarget } from "@/lib/auth-navigation";
-=======
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
 
 export function LoginPage() {
   const { user, isAdmin, loading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-<<<<<<< HEAD
-=======
   const [error, setError] = useState<string | null>(null);
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
 
   useEffect(() => {
     if (!authLoading && user && typeof window !== "undefined") {
@@ -39,20 +28,6 @@ export function LoginPage() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     const normalizedEmail = email.trim().toLowerCase();
-<<<<<<< HEAD
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({
-      email: normalizedEmail,
-      password,
-    });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    toast.success("Welcome back");
-    window.location.assign(getSafeRedirectTarget("/dashboard"));
-=======
 
     setError(null);
 
@@ -84,7 +59,6 @@ export function LoginPage() {
 
     toast.success("Welcome back");
     window.location.assign(getSafeRedirectTarget(getDefaultAuthenticatedPath(isUserAdmin)));
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
   }
 
   return (
@@ -109,14 +83,10 @@ export function LoginPage() {
               autoComplete="email"
               required
               value={email}
-<<<<<<< HEAD
-              onChange={(e) => setEmail(e.target.value)}
-=======
               onChange={(e) => {
                 setEmail(e.target.value);
                 setError(null);
               }}
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
               className="mt-1.5"
             />
           </div>
@@ -128,12 +98,6 @@ export function LoginPage() {
               autoComplete="current-password"
               required
               value={password}
-<<<<<<< HEAD
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1.5"
-            />
-          </div>
-=======
               onChange={(e) => {
                 setPassword(e.target.value);
                 setError(null);
@@ -142,7 +106,6 @@ export function LoginPage() {
             />
           </div>
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
           <Button type="submit" disabled={loading} className="w-full shadow-glow">
             {loading ? "Signing in..." : "Sign in"}
           </Button>

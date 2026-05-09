@@ -4,11 +4,7 @@
   "sideEffects": false,
   "type": "module",
   "scripts": {
-<<<<<<< HEAD
-    "dev": "vite dev",
-=======
     "dev": "vite dev --force",
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",

@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-<<<<<<< HEAD
-=======
 import threading
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
 import unittest
 import tempfile
 from pathlib import Path
@@ -63,8 +60,6 @@ class _AdminStatsScanService(ScanService):
         return 0
 
 
-<<<<<<< HEAD
-=======
 class _DeferredPersistenceScanService(ScanService):
     def __init__(self, config, model_service, local_history_store) -> None:
         super().__init__(config, model_service, local_history_store)
@@ -76,7 +71,6 @@ class _DeferredPersistenceScanService(ScanService):
         self.persist_event.set()
 
 
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
 class ScanServiceTestCase(unittest.TestCase):
     def test_scan_returns_prediction_when_persistence_fails(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -102,11 +96,8 @@ class ScanServiceTestCase(unittest.TestCase):
 
             self.assertEqual(result["result"], "phishing")
             self.assertEqual(result["confidence"], 0.88)
-<<<<<<< HEAD
-=======
             self.assertEqual(result["model_name"], "DecisionTreeClassifier")
             self.assertEqual(result["model_version"], "test-model")
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
             self.assertIn("warning", result)
             self.assertEqual(history["total"], 1)
             self.assertEqual(history["items"][0]["url"], "https://paypal.com/login")
@@ -135,8 +126,6 @@ class ScanServiceTestCase(unittest.TestCase):
             self.assertEqual(api_key, "service-role-key")
             self.assertEqual(auth_header, "Bearer service-role-key")
 
-<<<<<<< HEAD
-=======
     def test_scan_can_defer_persistence_without_changing_prediction_payload(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             service = _DeferredPersistenceScanService(
@@ -163,7 +152,6 @@ class ScanServiceTestCase(unittest.TestCase):
             self.assertTrue(service.persist_event.wait(timeout=1))
             self.assertEqual(service.persisted_urls, ["https://paypal.com/login"])
 
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
     def test_admin_stats_include_auth_history(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             service = _AdminStatsScanService(

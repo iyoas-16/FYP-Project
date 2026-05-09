@@ -7,16 +7,8 @@ from dotenv import load_dotenv
 
 
 _BACKEND_DIR = Path(__file__).resolve().parent.parent
-<<<<<<< HEAD
-
-# Ensure .env is loaded before reading
-for env_file in [_BACKEND_DIR / ".env", _BACKEND_DIR.parent / ".env"]:
-    if env_file.exists():
-        load_dotenv(env_file, override=True)
-=======
 load_dotenv(_BACKEND_DIR / ".env")
 load_dotenv(_BACKEND_DIR.parent / ".env", override=False)
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
 
 
 def _as_bool(value: str | None, default: bool = False) -> bool:
@@ -31,8 +23,6 @@ def _as_list(value: str | None) -> list[str]:
     return [item.strip().lower() for item in value.split(",") if item.strip()]
 
 
-<<<<<<< HEAD
-=======
 def _default_cors_origins() -> list[str]:
     origins: list[str] = []
     for host in ("localhost", "127.0.0.1"):
@@ -72,7 +62,6 @@ def _trusted_domains(value: str | None) -> list[str]:
     return domains
 
 
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
 def _resolve_path(base_dir: Path, value: str) -> str:
     path = Path(value)
     return str(path if path.is_absolute() else base_dir / path)
@@ -86,11 +75,7 @@ class Settings:
     JSON_SORT_KEYS = False
     PROPAGATE_EXCEPTIONS = False
 
-<<<<<<< HEAD
-    MODEL_PATH = _resolve_path(BASE_DIR, os.getenv("MODEL_PATH", "model.pkl"))
-=======
     MODEL_PATH = _resolve_path(BASE_DIR, os.getenv("MODEL_PATH", "phishing_model.pkl"))
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
     VECTORIZER_PATH = _resolve_path(BASE_DIR, os.getenv("VECTORIZER_PATH", "vectorizer.pkl"))
     MODEL_VERSION = os.getenv("MODEL_VERSION", "decision-tree-v1")
 
@@ -101,16 +86,7 @@ class Settings:
     SUPABASE_TIMEOUT_SECONDS = int(os.getenv("SUPABASE_TIMEOUT_SECONDS", "10"))
     ADMIN_ANALYTICS_FETCH_LIMIT = int(os.getenv("ADMIN_ANALYTICS_FETCH_LIMIT", "5000"))
     LOCAL_HISTORY_DB_PATH = _resolve_path(BASE_DIR, os.getenv("LOCAL_HISTORY_DB_PATH", "instance/scan_history.sqlite"))
-<<<<<<< HEAD
-    CORS_ALLOWED_ORIGINS = _as_list(
-        os.getenv(
-            "CORS_ALLOWED_ORIGINS",
-            "http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://127.0.0.1:8080",
-        )
-    )
-=======
     CORS_ALLOWED_ORIGINS = _cors_origins(os.getenv("CORS_ALLOWED_ORIGINS"))
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
 
     SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
     SUPABASE_JWKS_URL = os.getenv("SUPABASE_JWKS_URL", "")
@@ -120,21 +96,13 @@ class Settings:
 
     ADMIN_ROLES = _as_list(os.getenv("ADMIN_ROLES", "admin,service_role"))
     ADMIN_EMAILS = _as_list(os.getenv("ADMIN_EMAILS"))
-<<<<<<< HEAD
-=======
     TRUSTED_DOMAINS = _trusted_domains(os.getenv("TRUSTED_DOMAINS"))
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
 
     BRAND_KEYWORDS = {
         "facebook": "Facebook",
         "paypal": "PayPal",
         "microsoft": "Microsoft",
         "google": "Google",
-<<<<<<< HEAD
-        "apple": "Apple",
-        "steam": "Steam",
-        "amazon": "Amazon",
-=======
         "github": "GitHub",
         "chatgpt": "ChatGPT",
         "openai": "OpenAI",
@@ -144,7 +112,6 @@ class Settings:
         "youtube": "YouTube",
         "wikipedia": "Wikipedia",
         "stripe": "Stripe",
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
         "mastercard": "Mastercard",
         "americanexpress": "American Express",
         "amex": "American Express",

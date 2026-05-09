@@ -1,23 +1,8 @@
 from __future__ import annotations
 
-<<<<<<< HEAD
-import os
-from pathlib import Path
-
-from dotenv import load_dotenv
-from flask import Flask, jsonify
-from flask_cors import CORS
-
-# Load .env before importing Settings
-_BACKEND_DIR = Path(__file__).resolve().parent
-load_dotenv(_BACKEND_DIR / ".env", override=True)
-load_dotenv(_BACKEND_DIR.parent / ".env", override=False)
-
-=======
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
 from config import Settings
 from routes import api_blueprint
 from services import AuthService, LocalHistoryStore, PhishingModelService, ScanService
@@ -49,8 +34,6 @@ def create_app(test_config: dict | None = None) -> Flask:
         methods=["GET", "POST", "OPTIONS"],
     )
 
-<<<<<<< HEAD
-=======
     @app.after_request
     def add_cors_headers(response):
         origin = request.headers.get("Origin")
@@ -65,7 +48,6 @@ def create_app(test_config: dict | None = None) -> Flask:
 
         return response
 
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
     @app.get("/")
     def index():
         return jsonify(
@@ -76,20 +58,6 @@ def create_app(test_config: dict | None = None) -> Flask:
             }
         )
 
-<<<<<<< HEAD
-    @app.get("/debug/config")
-    def debug_config():
-        """Debug endpoint to check configuration"""
-        return jsonify(
-            {
-                "supabase_url": app.config.get("SUPABASE_URL"),
-                "service_role_key_exists": bool(app.config.get("SUPABASE_SERVICE_ROLE_KEY")),
-                "service_role_key_length": len(app.config.get("SUPABASE_SERVICE_ROLE_KEY", "")),
-            }
-        )
-
-=======
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
     app.register_blueprint(api_blueprint)
     register_error_handlers(app)
     return app
@@ -97,9 +65,5 @@ def create_app(test_config: dict | None = None) -> Flask:
 
 app = create_app()
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
