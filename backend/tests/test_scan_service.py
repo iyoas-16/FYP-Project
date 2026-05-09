@@ -1,0 +1,148 @@
+from __future__ import annotations
+
+import unittest
+import tempfile
+from pathlib import Path
+
+from services.local_history_store import LocalHistoryStore
+from services.model_service import ModelPrediction
+from services.scan_service import ScanService
+from utils.auth import AuthenticatedUser
+from utils.errors import UpstreamServiceError
+
+
+class _FakeModelService:
+    def predict(self, prepared_url):
+        return ModelPrediction(
+            storage_result="phishing",
+            api_result="phishing",
+            confidence=0.88,
+            model_name="DecisionTreeClassifier",
+            model_version="test-model",
+            heuristics=prepared_url.heuristics,
+        )
+
+
+class _FailingScanService(ScanService):
+    def _save_scan(self, user, prepared_url, prediction, *, created_at) -> None:
+        raise UpstreamServiceError("save failed")
+
+
+class _AdminStatsScanService(ScanService):
+    def _request(self, method, path, **kwargs):
+        if path == "/rest/v1/scans":
+            return []
+        if path == "/auth/v1/admin/users":
+            return {
+                "users": [
+                    {
+                        "id": "user-123",
+                        "email": "admin@example.com",
+                        "created_at": "2026-04-01T10:00:00+00:00",
+                        "last_sign_in_at": "2026-04-18T12:00:00+00:00",
+                        "role": "authenticated",
+                        "app_metadata": {"role": "admin", "roles": ["admin"]},
+                    },
+                    {
+                        "id": "user-456",
+                        "email": "user@example.com",
+                        "created_at": "2026-04-02T10:00:00+00:00",
+                        "last_sign_in_at": None,
+                        "role": "authenticated",
+                        "app_metadata": {"provider": "email", "roles": ["user"]},
+                    },
+                ]
+            }
+        raise AssertionError(f"Unexpected request path: {path}")
+
+    def _count_records(self, extra_filters=None, *, user=None) -> int:
+        return 0
+
+
+class ScanServiceTestCase(unittest.TestCase):
+    def test_scan_returns_prediction_when_persistence_fails(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = _FailingScanService(
+                {
+                    "BRAND_KEYWORDS": {
+                        "paypal": "PayPal",
+                    }
+                },
+                _FakeModelService(),
+                LocalHistoryStore(str(Path(temp_dir) / "history.sqlite")),
+            )
+            user = AuthenticatedUser(
+                user_id="user-123",
+                email="user@example.com",
+                claims={"sub": "user-123"},
+                is_admin=False,
+                access_token="token",
+            )
+
+            result = service.scan_url(user, "https://paypal.com/login")
+            history = service.get_history(user, limit=10, offset=0)
+
+            self.assertEqual(result["result"], "phishing")
+            self.assertEqual(result["confidence"], 0.88)
+            self.assertIn("warning", result)
+            self.assertEqual(history["total"], 1)
+            self.assertEqual(history["items"][0]["url"], "https://paypal.com/login")
+
+    def test_service_role_key_takes_precedence_for_supabase_requests(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = ScanService(
+                {
+                    "SUPABASE_URL": "https://example.supabase.co",
+                    "SUPABASE_SERVICE_ROLE_KEY": "service-role-key",
+                    "SUPABASE_PUBLISHABLE_KEY": "publishable-key",
+                },
+                _FakeModelService(),
+                LocalHistoryStore(str(Path(temp_dir) / "history.sqlite")),
+            )
+            user = AuthenticatedUser(
+                user_id="user-123",
+                email="user@example.com",
+                claims={"sub": "user-123"},
+                is_admin=False,
+                access_token="user-token",
+            )
+
+            api_key, auth_header = service._resolve_credentials(user)
+
+            self.assertEqual(api_key, "service-role-key")
+            self.assertEqual(auth_header, "Bearer service-role-key")
+
+    def test_admin_stats_include_auth_history(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = _AdminStatsScanService(
+                {
+                    "ADMIN_ANALYTICS_FETCH_LIMIT": 50,
+                    "SUPABASE_SERVICE_ROLE_KEY": "service-role-key",
+                },
+                _FakeModelService(),
+                LocalHistoryStore(str(Path(temp_dir) / "history.sqlite")),
+            )
+
+            result = service.get_admin_stats(range_value="30d", include_auth_history=True)
+
+            self.assertEqual(len(result["auth_history"]), 2)
+            self.assertEqual(result["auth_history"][0]["email"], "admin@example.com")
+            self.assertTrue(result["auth_history"][0]["is_admin"])
+            self.assertEqual(
+                result["auth_history"][1]["signup_timestamp"], "2026-04-02T10:00:00+00:00"
+            )
+
+    def test_admin_stats_omits_auth_history_when_not_requested(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = _AdminStatsScanService(
+                {
+                    "ADMIN_ANALYTICS_FETCH_LIMIT": 50,
+                    "SUPABASE_SERVICE_ROLE_KEY": "service-role-key",
+                },
+                _FakeModelService(),
+                LocalHistoryStore(str(Path(temp_dir) / "history.sqlite")),
+            )
+
+            result = service.get_admin_stats(range_value="30d", include_auth_history=False)
+
+            self.assertNotIn("auth_history", result)
