@@ -94,7 +94,7 @@ def scan_url():
 def predict_url():
     user = get_jwt_verifier().require_user()
     payload = _parse_json_body()
-    result = _get_scan_service().scan_url(user, payload.get("url"))
+    result = _get_scan_service().scan_url(user, payload.get("url"), persist_mode="deferred")
     prediction = str(result.get("result", "")).strip().lower()
     return (
         jsonify(

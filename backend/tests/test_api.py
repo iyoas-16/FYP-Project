@@ -37,10 +37,10 @@ class FakeScanService:
     def __init__(self) -> None:
         self.saved_payloads = []
 
-    def scan_url(self, user, raw_url):
+    def scan_url(self, user, raw_url, *, persist_mode="blocking"):
         if str(raw_url).startswith("ftp://"):
             raise ValidationError("Only http and https URLs are supported")
-        self.saved_payloads.append({"user_id": user.user_id, "url": raw_url})
+        self.saved_payloads.append({"user_id": user.user_id, "url": raw_url, "persist_mode": persist_mode})
         return {
             "result": "phishing",
             "confidence": 0.91,
@@ -153,6 +153,7 @@ class ApiTestCase(unittest.TestCase):
             },
         )
         self.assertEqual(len(scan_service.saved_payloads), 1)
+        self.assertEqual(scan_service.saved_payloads[0]["persist_mode"], "deferred")
 
     def test_predict_endpoint_handles_preflight(self):
         self._inject_services()

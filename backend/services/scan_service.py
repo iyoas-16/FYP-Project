@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import logging
 from collections import defaultdict
 from collections.abc import Mapping
@@ -22,12 +23,15 @@ class ScanService:
         self._config = config
         self._model_service = model_service
         self._local_history_store = local_history_store
+        self._persistence_executor = ThreadPoolExecutor(
+            max_workers=max(1, int(self._config.get("SCAN_PERSIST_WORKERS", 2)))
+        )
 
     @property
     def _scans_table(self) -> str:
         return self._config.get("SUPABASE_SCANS_TABLE", "scans")
 
-    def scan_url(self, user: AuthenticatedUser, raw_url: str) -> dict:
+    def scan_url(self, user: AuthenticatedUser, raw_url: str, *, persist_mode: str = "blocking") -> dict:
         prepared_url = prepare_url(raw_url, self._config["BRAND_KEYWORDS"])
         prediction = self._model_service.predict(prepared_url)
         created_at = datetime.now(UTC).isoformat()
@@ -37,6 +41,28 @@ class ScanService:
             "model_name": prediction.model_name,
             "model_version": prediction.model_version,
         }
+        if persist_mode == "deferred":
+            self._persist_scan_deferred(user, prepared_url, prediction, created_at=created_at)
+            return response
+
+        warning = self._persist_scan_with_fallback(
+            user=user,
+            prepared_url=prepared_url,
+            prediction=prediction,
+            created_at=created_at,
+        )
+        if warning:
+            response["warning"] = warning
+        return response
+
+    def _persist_scan_with_fallback(
+        self,
+        *,
+        user: AuthenticatedUser,
+        prepared_url: PreparedUrl,
+        prediction: ModelPrediction,
+        created_at: str,
+    ) -> str | None:
         try:
             self._save_scan(user, prepared_url, prediction, created_at=created_at)
         except (ConfigurationError, UpstreamServiceError) as exc:
@@ -47,8 +73,50 @@ class ScanService:
                 prediction=prediction,
                 created_at=created_at,
             )
-            response["warning"] = "Scan completed and was saved to local history because the remote history store is unavailable."
-        return response
+            return "Scan completed and was saved to local history because the remote history store is unavailable."
+        return None
+
+    def _persist_scan_deferred(
+        self,
+        user: AuthenticatedUser,
+        prepared_url: PreparedUrl,
+        prediction: ModelPrediction,
+        *,
+        created_at: str,
+    ) -> None:
+        try:
+            self._persistence_executor.submit(
+                self._persist_scan_background,
+                user,
+                prepared_url,
+                prediction,
+                created_at,
+            )
+        except RuntimeError:
+            warning = self._persist_scan_with_fallback(
+                user=user,
+                prepared_url=prepared_url,
+                prediction=prediction,
+                created_at=created_at,
+            )
+            if warning:
+                logger.warning(warning)
+
+    def _persist_scan_background(
+        self,
+        user: AuthenticatedUser,
+        prepared_url: PreparedUrl,
+        prediction: ModelPrediction,
+        created_at: str,
+    ) -> None:
+        warning = self._persist_scan_with_fallback(
+            user=user,
+            prepared_url=prepared_url,
+            prediction=prediction,
+            created_at=created_at,
+        )
+        if warning:
+            logger.warning(warning)
 
     def get_history(
         self,
