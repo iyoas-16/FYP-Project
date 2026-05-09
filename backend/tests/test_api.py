@@ -37,11 +37,24 @@ class FakeScanService:
     def __init__(self) -> None:
         self.saved_payloads = []
 
+<<<<<<< HEAD
     def scan_url(self, user, raw_url):
         if str(raw_url).startswith("ftp://"):
             raise ValidationError("Only http and https URLs are supported")
         self.saved_payloads.append({"user_id": user.user_id, "url": raw_url})
         return {"result": "phishing", "confidence": 0.91}
+=======
+    def scan_url(self, user, raw_url, *, persist_mode="blocking"):
+        if str(raw_url).startswith("ftp://"):
+            raise ValidationError("Only http and https URLs are supported")
+        self.saved_payloads.append({"user_id": user.user_id, "url": raw_url, "persist_mode": persist_mode})
+        return {
+            "result": "phishing",
+            "confidence": 0.91,
+            "model_name": "GradientBoostingClassifier",
+            "model_version": "test-model",
+        }
+>>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
 
     def get_history(self, user, limit, offset, **kwargs):
         return {
@@ -127,6 +140,49 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(payload["confidence"], 0.91)
         self.assertEqual(len(scan_service.saved_payloads), 1)
 
+<<<<<<< HEAD
+=======
+    def test_predict_endpoint_returns_prediction(self):
+        scan_service = self._inject_services()
+
+        response = self.client.post(
+            "/predict",
+            json={"url": "paypal.com/login"},
+            headers={"Authorization": "Bearer token"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.get_json(),
+            {
+                "prediction": "phishing",
+                "result": "phishing",
+                "confidence": 0.91,
+                "model_name": "GradientBoostingClassifier",
+                "model_version": "test-model",
+            },
+        )
+        self.assertEqual(len(scan_service.saved_payloads), 1)
+        self.assertEqual(scan_service.saved_payloads[0]["persist_mode"], "deferred")
+
+    def test_predict_endpoint_handles_preflight(self):
+        self._inject_services()
+
+        response = self.client.open(
+            "/predict",
+            method="OPTIONS",
+            headers={
+                "Origin": "http://127.0.0.1:3004",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "authorization,content-type",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers.get("Access-Control-Allow-Origin"), "http://127.0.0.1:3004")
+        self.assertIn("POST", response.headers.get("Access-Control-Allow-Methods", ""))
+
+>>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
     def test_scan_endpoint_validates_input(self):
         self._inject_services()
         response = self.client.post(

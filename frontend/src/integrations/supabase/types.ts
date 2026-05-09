@@ -46,16 +46,28 @@ export type Database = {
           created_at: string;
           email: string | null;
           id: string;
+<<<<<<< HEAD
+=======
+          role: "user" | "admin";
+>>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
         };
         Insert: {
           created_at?: string;
           email?: string | null;
           id: string;
+<<<<<<< HEAD
+=======
+          role?: "user" | "admin";
+>>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
         };
         Update: {
           created_at?: string;
           email?: string | null;
           id?: string;
+<<<<<<< HEAD
+=======
+          role?: "user" | "admin";
+>>>>>>> 0f6a9ea79a9cdd0c272e30d1a1fa0eb68e64c786
         };
         Relationships: [];
       };
