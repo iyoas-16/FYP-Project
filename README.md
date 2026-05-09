@@ -96,12 +96,13 @@ FYP-Project/
 |- backend/
 |  |- app.py
 |  |- config/
+|  |- ml/
 |  |- routes/
 |  |- services/
 |  |- supabase/
 |  |- tests/
-|  |- model.pkl
-|  |- vectorizer.pkl
+|  |- phishing_model.pkl
+|  |- train_phishing_model.py
 |  |- Phishing URL Detection.ipynb
 |  `- requirements.txt
 |- frontend/
