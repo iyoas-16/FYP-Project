@@ -6,4 +6,4 @@ pandas>=2.2,<3.0
 python-dotenv>=1.0,<2.0
 PyJWT[crypto]>=2.9,<3.0
 requests>=2.31,<3.0
-scikit-learn>=1.6,<1.7
+scikit-learn>=1.7,<2.0

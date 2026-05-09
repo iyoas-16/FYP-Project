@@ -7,8 +7,11 @@ from dotenv import load_dotenv
 
 
 _BACKEND_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(_BACKEND_DIR / ".env")
-load_dotenv(_BACKEND_DIR.parent / ".env", override=False)
+
+# Ensure .env is loaded before reading
+for env_file in [_BACKEND_DIR / ".env", _BACKEND_DIR.parent / ".env"]:
+    if env_file.exists():
+        load_dotenv(env_file, override=True)
 
 
 def _as_bool(value: str | None, default: bool = False) -> bool:

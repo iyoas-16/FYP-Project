@@ -1,4 +1,5 @@
 # PhishGuard: System Architecture Overview
+
 ## Complete System Understanding
 
 ---
@@ -7,12 +8,14 @@
 
 ### What Problem Does PhishGuard Solve?
 
-**Challenge**: 
+**Challenge**:
+
 - Phishing attacks continue to grow in sophistication
 - Users need instant, reliable URL safety verification
 - Organizations need to track and monitor phishing threats
 
 **Solution**:
+
 - Real-time URL classification using machine learning
 - Instant feedback to users (< 100ms)
 - Historical tracking and analytics for security teams
@@ -123,7 +126,7 @@ USER INTERACTION
        └─ Confidence Scoring
        │
        ▼
-    Result: { 
+    Result: {
        result: "phishing" | "legit",
        confidence: 0.85,
        model_version: "decision-tree-v1"
@@ -165,6 +168,7 @@ USER INTERACTION
 ### Page Structure
 
 #### 3.1 Landing Page (`src/pages/LandingPage.tsx`)
+
 - **Purpose**: Marketing & entry point
 - **Features**:
   - Feature overview
@@ -173,6 +177,7 @@ USER INTERACTION
   - Educational content about phishing
 
 #### 3.2 Dashboard Page (`src/pages/DashboardPage.tsx`)
+
 - **Purpose**: Main scanning interface
 - **Features**:
   - URL input field
@@ -182,6 +187,7 @@ USER INTERACTION
   - Quick actions (New scan, View history, Export)
 
 #### 3.3 History Page (`src/pages/HistoryPage.tsx`)
+
 - **Purpose**: View and manage past scans
 - **Features**:
   - Table/List of scans
@@ -192,6 +198,7 @@ USER INTERACTION
   - CSV export
 
 #### 3.4 Admin Page (`src/pages/AdminPage.tsx`)
+
 - **Purpose**: Platform-wide analytics
 - **Features**:
   - Total scans count
@@ -340,12 +347,14 @@ Flask Application Entry Point (app.py)
 #### 4.1 PhishingModelService
 
 **Responsibilities**:
+
 1. Load ML model and vectorizer
 2. Transform URLs to features
 3. Make predictions
 4. Calculate confidence scores
 
 **Key Methods**:
+
 ```python
 class PhishingModelService:
     predict(prepared_url) → ModelPrediction
@@ -357,6 +366,7 @@ class PhishingModelService:
 #### 4.2 ScanService
 
 **Responsibilities**:
+
 1. Coordinate the scanning process
 2. Call model service for predictions
 3. Persist results to database
@@ -365,6 +375,7 @@ class PhishingModelService:
 6. Generate admin statistics
 
 **Key Methods**:
+
 ```python
 class ScanService:
     scan_url(user, raw_url) → result
@@ -377,11 +388,13 @@ class ScanService:
 #### 4.3 AuthService
 
 **Responsibilities**:
+
 1. Create user accounts via Supabase
 2. Manage user profiles
 3. Assign roles (user/admin)
 
 **Key Methods**:
+
 ```python
 class AuthService:
     signup(email, password) → user_id
@@ -391,11 +404,13 @@ class AuthService:
 #### 4.4 LocalHistoryStore
 
 **Responsibilities**:
+
 1. Fallback storage when Supabase is unavailable
 2. SQLite database management
 3. Query history locally
 
 **Key Methods**:
+
 ```python
 class LocalHistoryStore:
     save_scan(user_id, url, result, ...) → None
@@ -450,9 +465,11 @@ prepared_url = {
 ### Supabase Database Schema
 
 #### Table: `scans`
+
 **Purpose**: Store all scan results for analytics and history
 
 **Columns**:
+
 ```sql
 id                    UUID              -- Primary key
 user_id               UUID              -- User who performed scan
@@ -472,25 +489,27 @@ created_at            TIMESTAMPTZ       -- When scan was created
 ```
 
 **Indexes**:
+
 ```sql
 -- For user history queries
-CREATE INDEX idx_scans_user_created 
+CREATE INDEX idx_scans_user_created
 ON scans(user_id, created_at DESC, id DESC);
 
 -- For filtering by result
-CREATE INDEX idx_scans_result_created 
+CREATE INDEX idx_scans_result_created
 ON scans(result, created_at DESC);
 
 -- For time-based queries
-CREATE INDEX idx_scans_created 
+CREATE INDEX idx_scans_created
 ON scans(created_at DESC);
 
 -- For full-text URL search
-CREATE INDEX idx_scans_url_trgm 
+CREATE INDEX idx_scans_url_trgm
 ON scans USING gin (url gin_trgm_ops);
 ```
 
 **Row-Level Security (RLS)**:
+
 ```sql
 -- Users can only see their own scans
 CREATE POLICY "users read own scans" ON scans
@@ -502,9 +521,11 @@ FOR INSERT WITH CHECK (auth.uid() = user_id);
 ```
 
 #### Table: `profiles`
+
 **Purpose**: User profile information
 
 **Columns**:
+
 ```sql
 id         UUID         -- Matches auth.users.id
 email      TEXT         -- User's email
@@ -512,9 +533,11 @@ created_at TIMESTAMPTZ  -- Account creation date
 ```
 
 #### Table: `user_roles`
+
 **Purpose**: Admin access control
 
 **Columns**:
+
 ```sql
 user_id    UUID    -- User ID
 role       TEXT    -- 'user' | 'admin'
@@ -528,6 +551,7 @@ created_at TIMESTAMPTZ
 **Purpose**: Local backup when Supabase unavailable
 
 **Tables**:
+
 - Similar to Supabase `scans` table
 - Auto-created on first fallback write
 - Thread-safe access via threading.Lock()
@@ -799,6 +823,7 @@ Orchestration:
 ### Environment Variables
 
 **Backend**:
+
 ```bash
 # Model
 MODEL_PATH=model.pkl
@@ -819,6 +844,7 @@ FLASK_DEBUG=false
 ```
 
 **Frontend**:
+
 ```bash
 VITE_API_URL=http://localhost:5000
 VITE_SUPABASE_URL=https://xxxxx.supabase.co
@@ -949,25 +975,25 @@ Step 7: Frontend Display
 
 ### Performance Metrics
 
-| Metric | Target | Actual |
-|--------|--------|--------|
-| **Model Inference** | < 5ms | ~2ms ✓ |
-| **URL Normalization** | < 10ms | ~5ms ✓ |
-| **API Response** | < 100ms | ~50-70ms ✓ |
-| **Throughput** | > 100 rps | 250-300 rps ✓ |
-| **Memory/Request** | < 100KB | ~92KB ✓ |
-| **Model Size** | < 10MB | 2-5MB ✓ |
+| Metric                | Target    | Actual        |
+| --------------------- | --------- | ------------- |
+| **Model Inference**   | < 5ms     | ~2ms ✓        |
+| **URL Normalization** | < 10ms    | ~5ms ✓        |
+| **API Response**      | < 100ms   | ~50-70ms ✓    |
+| **Throughput**        | > 100 rps | 250-300 rps ✓ |
+| **Memory/Request**    | < 100KB   | ~92KB ✓       |
+| **Model Size**        | < 10MB    | 2-5MB ✓       |
 
 ### Business Metrics
 
-| Metric | Importance | Measurement |
-|--------|-----------|-------------|
-| **Accuracy** | High | TP/(TP+FP) |
-| **False Positive Rate** | Critical | FP/(FP+TN) |
-| **Detection Rate** | High | TP/(TP+FN) |
-| **Uptime** | Critical | 99.9%+ |
-| **User Satisfaction** | High | NPS Score |
-| **Adoption Rate** | Medium | Active Users |
+| Metric                  | Importance | Measurement  |
+| ----------------------- | ---------- | ------------ |
+| **Accuracy**            | High       | TP/(TP+FP)   |
+| **False Positive Rate** | Critical   | FP/(FP+TN)   |
+| **Detection Rate**      | High       | TP/(TP+FN)   |
+| **Uptime**              | Critical   | 99.9%+       |
+| **User Satisfaction**   | High       | NPS Score    |
+| **Adoption Rate**       | Medium     | Active Users |
 
 ---
 
@@ -1086,6 +1112,7 @@ Business Metrics:
 ### Common Issues
 
 #### Issue 1: "Model service is unavailable"
+
 ```
 Cause: model.pkl or vectorizer.pkl missing
 Solution:
@@ -1095,6 +1122,7 @@ Solution:
 ```
 
 #### Issue 2: Slow API responses (> 100ms)
+
 ```
 Cause: Database latency or high CPU
 Solution:
@@ -1105,6 +1133,7 @@ Solution:
 ```
 
 #### Issue 3: Scans not being saved
+
 ```
 Cause: Supabase unavailable, fallback working
 Solution:
@@ -1115,6 +1144,7 @@ Solution:
 ```
 
 #### Issue 4: Authentication errors
+
 ```
 Cause: Invalid JWT or token expired
 Solution:

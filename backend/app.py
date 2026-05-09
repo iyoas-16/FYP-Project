@@ -1,7 +1,16 @@
 from __future__ import annotations
 
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
 from flask import Flask, jsonify
 from flask_cors import CORS
+
+# Load .env before importing Settings
+_BACKEND_DIR = Path(__file__).resolve().parent
+load_dotenv(_BACKEND_DIR / ".env", override=True)
+load_dotenv(_BACKEND_DIR.parent / ".env", override=False)
 
 from config import Settings
 from routes import api_blueprint
@@ -41,6 +50,17 @@ def create_app(test_config: dict | None = None) -> Flask:
                 "status": "ok",
                 "service": "phishing-detection-api",
                 "version": app.config["MODEL_VERSION"],
+            }
+        )
+
+    @app.get("/debug/config")
+    def debug_config():
+        """Debug endpoint to check configuration"""
+        return jsonify(
+            {
+                "supabase_url": app.config.get("SUPABASE_URL"),
+                "service_role_key_exists": bool(app.config.get("SUPABASE_SERVICE_ROLE_KEY")),
+                "service_role_key_length": len(app.config.get("SUPABASE_SERVICE_ROLE_KEY", "")),
             }
         )
 
