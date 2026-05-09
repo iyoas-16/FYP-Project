@@ -20,6 +20,10 @@ class UrlProcessingTestCase(unittest.TestCase):
         with self.assertRaisesRegex(ValidationError, "URL hostname is invalid"):
             prepare_url("not correct", self.brand_keywords)
 
+    def test_rejects_malformed_bracketed_hostname(self):
+        with self.assertRaisesRegex(ValidationError, "URL hostname is invalid"):
+            prepare_url("https://[.]/login", self.brand_keywords)
+
     def test_accepts_fully_qualified_domain(self):
         prepared = prepare_url("secure-paypal-login.com", self.brand_keywords)
 

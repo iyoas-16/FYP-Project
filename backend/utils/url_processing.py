@@ -128,7 +128,10 @@ def prepare_url(raw_url: str | None, brand_keywords: dict[str, str]) -> Prepared
         raise ValidationError("url must be 2048 characters or fewer")
 
     candidate = cleaned_input if _SCHEME_PREFIX.match(cleaned_input) else f"https://{cleaned_input}"
-    parsed = urlsplit(candidate)
+    try:
+        parsed = urlsplit(candidate)
+    except ValueError as exc:
+        raise ValidationError("URL hostname is invalid") from exc
     if parsed.scheme.lower() not in {"http", "https"}:
         raise ValidationError("Only http and https URLs are supported")
     if not parsed.hostname:
